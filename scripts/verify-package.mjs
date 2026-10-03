@@ -19,5 +19,5 @@ for(const file of ['README.md','README.zh-CN.md']){
   assert.ok(entries[target],`${file}: missing relative link ${target}`);
  }
 }
-assert.equal(strFromU8(entries.LICENSE).split('\n')[0],'MIT License');
+assert.equal(strFromU8(entries.LICENSE).split(/\r?\n/)[0],'MIT License');
 console.log(`Verified ${manifest.name} ${manifest.version}: ${Object.keys(entries).length} package files, links, MIT notices and marketplace images.`);
