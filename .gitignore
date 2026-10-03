@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.research/
+.test-workspace*
+artifacts/
+*.zip
+.DS_Store
+.env
+.env.*
+*.log
+# Local validation journal and machine-specific deployment helpers.
+TESTING.md
+scripts/install-send-fix.mjs
+scripts/real-workspace-agent-test.ts

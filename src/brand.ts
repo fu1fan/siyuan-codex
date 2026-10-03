@@ -1,0 +1,3 @@
+// Project-drawn notebook/terminal mark, licensed under MIT.
+export const codexLogo="<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M6 2h12a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3Zm0 2a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H6Z\"/><path d=\"m8 8 4 4-4 4-1.4-1.4 2.6-2.6-2.6-2.6L8 8Zm4 7h5v2h-5v-2Z\"/></svg>";
+export const codexSymbol="<symbol id=\"iconSiYuanCodex\" viewBox=\"0 0 24 24\"><path d=\"M6 2h12a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3Zm0 2a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H6Z\"/><path d=\"m8 8 4 4-4 4-1.4-1.4 2.6-2.6-2.6-2.6L8 8Zm4 7h5v2h-5v-2Z\"/></symbol>";

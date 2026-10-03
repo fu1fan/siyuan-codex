@@ -1,0 +1,30 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run verify:package
+      - name: Confirm release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node -e "const p=require('./plugin.json'); if(process.env.RELEASE_TAG!=='v'+p.version) throw Error('Tag must match plugin.json version');"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" package.zip siyuan-codex-*.zip --verify-tag --title "SiYuan Codex $RELEASE_TAG" --notes-file CHANGELOG.md

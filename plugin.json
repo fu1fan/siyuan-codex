@@ -1,0 +1,35 @@
+{
+  "name": "siyuan-codex",
+  "author": "fu1fan",
+  "url": "https://github.com/fu1fan/siyuan-codex",
+  "version": "0.4.6",
+  "minAppVersion": "3.8.6",
+  "backends": [
+    "windows",
+    "linux",
+    "darwin"
+  ],
+  "frontends": [
+    "desktop"
+  ],
+  "displayName": {
+    "default": "SiYuan Codex",
+    "zh-CN": "思源 Codex"
+  },
+  "description": {
+    "default": "Use your local Codex CLI to chat, reference notes and work with files in SiYuan.",
+    "zh-CN": "在思源侧边栏使用本机 Codex，引用笔记、阅读附件并处理本地项目。"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README.zh-CN.md"
+  },
+  "keywords": [
+    "Codex",
+    "Agent",
+    "MCP",
+    "AI"
+  ],
+  "icon": "icon.png",
+  "preview": "preview.png"
+}

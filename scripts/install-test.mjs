@@ -1,0 +1,12 @@
+import https from 'node:https';
+import {readFileSync,cpSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
+const root=process.cwd()+'/.test-workspace';
+const conf=JSON.parse(readFileSync(root+'/conf/conf.json','utf8'));
+const post=(path,body)=>new Promise((resolve,reject)=>{const req=https.request('https://127.0.0.1:16819'+path,{method:'POST',ca:readFileSync(root+'/conf/ca.crt'),headers:{Authorization:'Token '+conf.api.token,'Content-Type':'application/json'}},res=>{let data='';res.on('data',c=>data+=c);res.on('end',()=>{try{const v=JSON.parse(data);if(v.code!==0)reject(new Error(v.msg));else resolve(v.data);}catch(e){reject(e);}});});req.on('error',reject);req.end(JSON.stringify(body));});
+cpSync('dist',root+'/data/plugins/siyuan-codex',{recursive:true});
+await post('/api/setting/setBazaar',{...conf.bazaar,trust:true});
+mkdirSync(root+'/data/storage/petal/siyuan-codex',{recursive:true});
+if(!existsSync(root+'/data/storage/petal/siyuan-codex/settings.json'))writeFileSync(root+'/data/storage/petal/siyuan-codex/settings.json',JSON.stringify({binary:'',cwd:process.cwd(),model:'',sandbox:'read-only',mcpEnabled:true,mcpUrl:'https://127.0.0.1:16819/mcp',instructions:''}));
+const enabled=await post('/api/petal/setPetalEnabled',{packageName:'siyuan-codex',enabled:true});
+const plugins=await post('/api/petal/loadPetals',{frontend:'desktop'});
+console.log(JSON.stringify({enabled:!!enabled,loaded:plugins.map(p=>({name:p.name,jsBytes:p.js?.length}))}));
