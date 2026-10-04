@@ -2,7 +2,7 @@
   "name": "siyuan-codex",
   "author": "fu1fan",
   "url": "https://github.com/fu1fan/siyuan-codex",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "minAppVersion": "3.8.6",
   "backends": [
     "windows",

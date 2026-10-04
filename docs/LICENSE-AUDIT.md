@@ -11,10 +11,15 @@ protocol handling. Similarities found were public Protyle option names,
 standard DOM operations, theme variable names and common flex declarations.
 The host's implementation files are neither imported nor bundled.
 
-The icon previously extracted from an OpenAI extension has been replaced by
-a project-drawn notebook/terminal SVG. The replacement SVG and PNG belong to
-this project. UI previews use synthetic demonstration notes rendered by an isolated
-SiYuan kernel and simulated chat and diagnostic responses; they do not grant rights to the host application's branding.
+As of 0.4.7 (2026-10-04), the original Codex mark and plugin artwork have
+been restored from the local 0.4.5 package. The marketplace PNG is resized
+to 160 by 160 pixels to meet the marketplace's icon size limit. These
+third-party branding assets are not relicensed under this project's MIT
+License; attribution and the independent-plugin notice are in NOTICE.
+
+UI previews use synthetic demonstration notes rendered by an isolated
+SiYuan kernel and simulated chat and diagnostic responses. They do not
+grant rights to the host application's branding.
 
 The project owner's first public release uses MIT. This applies to project
 code and documentation. Bundled DOMPurify and marked retain their own license

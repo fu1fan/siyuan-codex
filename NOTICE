@@ -1,6 +1,6 @@
 SiYuan Codex
 Copyright (c) 2026 fu1fan and SiYuan Codex contributors.
-Project source, documentation and the project-drawn icon are licensed under MIT.
+Original project source and documentation are licensed under MIT.
 
 Third-party runtime dependencies bundled by the build:
 - DOMPurify: Apache-2.0 OR MPL-2.0. See licenses/DOMPurify-LICENSE and
@@ -16,5 +16,9 @@ and fragment-editor implementation are not distributed in this package.
 See NATIVE-PARITY.md for the reference revision and implementation mapping.
 
 Claudian informed the local-agent workflow; its source code is not bundled.
-Codex is a trademark of OpenAI. This independent community plugin is not
-an official OpenAI or SiYuan product and does not imply endorsement.
+Codex names and marks belong to OpenAI. The restored Codex SVG mark and
+plugin artwork are the pre-publication assets used by this integration.
+They are third-party branding assets and are not relicensed under the
+project's MIT License; no ownership of OpenAI marks is claimed. This
+independent community plugin is not an official OpenAI or SiYuan product
+and does not imply endorsement.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7
+
+- Restore the original Codex artwork and SVG mark in the marketplace icon, sidebar entry, empty chat and welcome page.
+- Update the welcome-page preview to match the restored mark.
+- Preserve the project MIT License and state third-party brand attribution separately in NOTICE.
+
 ## 0.4.6
 
 First public release of SiYuan Codex.

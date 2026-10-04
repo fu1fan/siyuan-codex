@@ -1,6 +1,6 @@
 {
   "name": "siyuan-codex",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",
