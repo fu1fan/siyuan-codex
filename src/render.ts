@@ -4,6 +4,15 @@ const purifiers=new WeakMap<Window,ReturnType<typeof createDOMPurify>>();
 function purify(){let value=purifiers.get(window);if(!value){value=createDOMPurify(window as any);purifiers.set(window,value);}return value;}
 
 const escapeHTML=(text:string)=>text.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+function codeBlock(text:string,language:string){
+ // SiYuan's typography renderer reads the language from the code block parent.
+ // The hljs class also excludes block code from the host's inline-code styles.
+ return `<pre${text.length<=50000?' class="code-block"':''} data-language="${escapeHTML(language||'plaintext')}"><code class="hljs">${escapeHTML(text)}</code></pre>`;
+}
+type HighlightRenderer=(element:Element)=>void;
+let highlightRenderer:HighlightRenderer|undefined;
+export function setMarkdownHighlighter(renderer?:HighlightRenderer){highlightRenderer=renderer;}
+const highlighted=new WeakSet<HTMLElement>();
 type RichToken=Tokens.Generic&{text:string;display?:boolean};
 type Slot={kind:'math'|'mermaid';source:string;display?:boolean};
 const libraries=new WeakMap<Window,Map<string,Promise<any>>>();
@@ -51,6 +60,7 @@ async function diagram(source:string):Promise<string>{
 }
 /** Markdown is parsed once, then trusted local renderers fill isolated math/diagram slots. */
 export function renderMarkdown(target:HTMLElement,source:string,streaming=false){
+ target.classList.add('b3-typography');
  const slots:Slot[]=[];const nonce=crypto.randomUUID();
  const placeholder=(slot:Slot)=>{const index=slots.push(slot)-1;return `<${slot.display?'div':'span'} class="la-rich-slot" data-la-slot="${nonce}-${index}">${escapeHTML(slot.source)}</${slot.display?'div':'span'}>`;};
  const blockMath:TokenizerExtension={name:'laBlockMath',level:'block',start:src=>src.search(/(?:^|\n) {0,3}(?:\$\$|\\\[)/),tokenizer(src){
@@ -74,13 +84,13 @@ export function renderMarkdown(target:HTMLElement,source:string,streaming=false)
   {...inlineMath,renderer:t=>placeholder({kind:'math',source:(t as RichToken).text,display:(t as RichToken).display})},
   {...cjkStrong,renderer:function(t){return '<strong>'+this.parser.parseInline(t.tokens!)+'</strong>';}}
  ],renderer:{code(token){
-  const language=token.lang?.trim().split(/\s/)[0]||'';
+  const language=token.lang?.trim().split(/\s/)[0].toLowerCase()||'';
   const fence=/^ {0,3}(`{3,}|~{3,})/.exec(token.raw);
   const closing=token.raw.trimEnd().split('\n').at(-1)?.trim()||'';
-  if(streaming&&fence&&!(closing.length>=fence[1].length&&Array.from(closing).every(c=>c===fence[1][0])))return `<pre><code>${escapeHTML(token.text)}</code></pre>`;
+  if(streaming&&fence&&!(closing.length>=fence[1].length&&Array.from(closing).every(c=>c===fence[1][0])))return codeBlock(token.text,language);
   if(language.toLowerCase()==='mermaid')return placeholder({kind:'mermaid',source:token.text,display:true});
   if(['math','latex','tex'].includes(language.toLowerCase()))return placeholder({kind:'math',source:token.text,display:true});
-  return `<pre><code${language?' class="language-'+escapeHTML(language)+'"':''}>${escapeHTML(token.text)}</code></pre>`;
+  return codeBlock(token.text,language);
  }}});
  target.innerHTML=purify().sanitize(parser.parse(source,{async:false}) as string,{FORBID_TAGS:['img','svg','math','style','input','form','iframe','script'],FORBID_ATTR:['style']});
  target.querySelectorAll<HTMLAnchorElement>('a').forEach(a=>{a.rel='noopener noreferrer';a.target='_blank';});
@@ -95,11 +105,22 @@ export function renderMarkdown(target:HTMLElement,source:string,streaming=false)
   pending.set(node,{slot,running:false});
  }
  for(const pre of target.querySelectorAll<HTMLElement>('pre')){
-  const copy=document.createElement('button');copy.type='button';copy.className='la-code-copy';copy.textContent='复制';copy.setAttribute('aria-label','复制代码');
-  copy.onclick=()=>{void navigator.clipboard.writeText(pre.querySelector('code')?.textContent||'').then(()=>{copy.textContent='已复制';}).catch(()=>{copy.textContent='复制失败';});};pre.append(copy);
+  const original=pre.querySelector('code')?.textContent||'';
+  const copy=document.createElement('button');copy.type='button';copy.className='b3-button b3-button--cancel la-code-copy';copy.textContent='复制';copy.setAttribute('aria-label','复制代码');
+  // The host renderer appends a newline; copying must preserve the original source.
+  copy.onclick=()=>{void navigator.clipboard.writeText(original).then(()=>{copy.textContent='已复制';}).catch(()=>{copy.textContent='复制失败';});};pre.append(copy);
  }
 }
 export async function enhanceMarkdown(target:HTMLElement){
+ if(highlightRenderer){
+  const bodies=[...(target.matches('.b3-typography')?[target]:[]),...target.querySelectorAll<HTMLElement>('.b3-typography')];
+  for(const body of bodies){
+   if(!visible(body))continue;
+   const codes=Array.from(body.querySelectorAll<HTMLElement>('.code-block code')).filter(code=>!highlighted.has(code));
+   if(!codes.length)continue;
+   try{highlightRenderer(body);codes.forEach(code=>highlighted.add(code));}catch{/* Keep source readable; allow a later enhancement to retry. */}
+  }
+ }
  const tasks=Array.from(target.querySelectorAll<HTMLElement>('.la-math,.la-mermaid')).map(async node=>{
   const state=pending.get(node);if(!state||state.running||!visible(node))return;state.running=true;
   try{

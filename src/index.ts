@@ -2,7 +2,8 @@ import {newSessionModel} from './session-model';
 import {ComposerPopover,permissionPanel,modelPanel,effortPanel,type ModelInfo} from './popover';
 import {permissionModes} from './permissions';
 import {effortLabel} from './model-options';
-import {Plugin,Dialog,showMessage,getActiveEditor,getActiveTab,openTab} from 'siyuan';
+import {Plugin,Dialog,ProtyleMethod,showMessage,getActiveEditor,getActiveTab,openTab} from 'siyuan';
+import {setMarkdownHighlighter} from './render';
 import {CodexClient,defaults,validateSettings,expandPath,type Settings} from './codex';
 import {CliCheckView,welcomePage} from './welcome';
 import {ChatSession,newSession,type Session} from './session';
@@ -47,6 +48,7 @@ export default class SiYuanCodex extends Plugin {
   private editorListener=({detail,type}:any)=>{const id=detail?.protyle?.block?.rootID||getActiveEditor(false)?.protyle?.block?.rootID;if(id){if(id===this.currentDoc&&type==='click-editorcontent'&&!this.workspaceError)return;this.currentDoc=id;void this.ready.then(()=>this.followWorkspace(id)).catch(e=>showMessage(e.message));}};
   private selectionMenuListener=({detail}:any)=>{if(detail?.range&&detail?.menu)this.view?.addSelectionMenu(detail.menu,detail.range);};
   onload(){
+    setMarkdownHighlighter(element=>ProtyleMethod.highlightRender(element));
     this.addIcons(codexSymbol);
     this.chat=this.makeChat(newSession(''));
     const self=this;
@@ -429,6 +431,7 @@ export default class SiYuanCodex extends Plugin {
     dialog=new Dialog({title:'思源 Codex · 设置',content:'<div class="la-settings-host"></div>',width:'640px',destroyCallback:()=>{check.destroy();this.dialogs.delete(dialog);}});dialog.element.querySelector('.la-settings-host')!.append(root);this.dialogs.add(dialog);
   }
   onunload(){
+    setMarkdownHighlighter();
     this.popover?.close(false);
     this.view?.destroy();this.view=undefined;for(const dialog of this.dialogs)dialog.destroy();
     for(const chat of this.chats.values()){chat.onChange=()=>{};if(chat.busy)chat.session.lastOutcome='stopped';chat.disconnect();}

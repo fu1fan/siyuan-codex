@@ -23,7 +23,7 @@ before(async()=>{
    export class Host{static notices=[];static topBars=[];static docks=[];static commands=[];static checks=[];}
    export class Plugin{data={};eventBus={on(){},off(){}};addIcons(){}addDock(o){Host.docks.push(o);}addTopBar(o){Host.topBars.push(o);}addCommand(o){Host.commands.push(o);}loadData(n){return Promise.resolve(structuredClone(this.data[n]??''));}async saveData(n,d){this.data[n]=structuredClone(d);}}
    export class Dialog{constructor(o){this.options=o;this.element=document.createElement('div');this.element.innerHTML=o.content;document.body.append(this.element);}destroy(){if(this.closed)return;this.closed=true;this.options.destroyCallback?.();this.element.remove();}}
-   export class Protyle{};export const openTab=()=>{},showMessage=m=>Host.notices.push(m),getActiveEditor=()=>undefined,getActiveTab=()=>undefined;
+   export class Protyle{};export class ProtyleMethod{static highlightRender(){}};export const openTab=()=>{},showMessage=m=>Host.notices.push(m),getActiveEditor=()=>undefined,getActiveTab=()=>undefined;
   `:args.path==='diagnostics'?`
    import {Host} from 'siyuan';
    export const initialChecks=()=>['path','version','connection','account'].map(id=>({id,state:'waiting',detail:'等待检测'}));

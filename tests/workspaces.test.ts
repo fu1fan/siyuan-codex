@@ -22,7 +22,7 @@ before(async()=>{
   b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='host'?`
    export class Host{static active;static notices=[];}
    export class Plugin{data={};eventBus={on(){},off(){}};loadData(n){return Promise.resolve(structuredClone(this.data[n]));}async saveData(n,d){this.data[n]=structuredClone(d);}}
-   export class Dialog{};export class Protyle{};export const openTab=()=>{};
+   export class Dialog{};export class Protyle{};export class ProtyleMethod{static highlightRender(){}};export const openTab=()=>{};
    export const showMessage=m=>Host.notices.push(m),getActiveEditor=()=>Host.active?{protyle:{block:{rootID:Host.active}}}:undefined,getActiveTab=()=>undefined;
   `:args.path==='os'?`export const homedir=()=>${JSON.stringify(dir)};`:args.path==='native'?`import {textareaComposer} from ${JSON.stringify(join(process.cwd(),'src/composer.ts'))};export const nativeComposer=()=>textareaComposer;`: `
    export const expandPath=v=>v;export const defaults={cwd:'',model:'',sandbox:'read-only',mcpEnabled:false},resolveBinary=()=>'',validateSettings=s=>s.cwd,threadOptions=s=>({cwd:s.cwd});

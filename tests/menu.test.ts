@@ -15,7 +15,7 @@ test('popover models and slider save selections; closed requests and outside cli
  b.onResolve({filter:/^siyuan$/},()=>({path:'host',namespace:'fixture'}));
  b.onResolve({filter:/\/codex$/},()=>({path:'codex',namespace:'fixture'}));
  b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='host'?`
- export class Plugin{};export class Dialog{};export class Protyle{};
+ export class Plugin{};export class Dialog{};export class Protyle{};export class ProtyleMethod{static highlightRender(){}};
  export const showMessage=()=>{},getActiveEditor=()=>{},getActiveTab=()=>{},openTab=()=>{};
  export class Menu {
  static latest;isOpen=false;items=[];opens=0;

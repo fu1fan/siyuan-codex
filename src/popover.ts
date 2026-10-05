@@ -1,4 +1,4 @@
-import {el,button} from './ui';
+import {el,button} from './dom';
 import {effortLabel} from './model-options';
 import {permissionModes,permissionIcon,type PermissionMode} from './permissions';
 export type ModelInfo={model:string;displayName?:string;defaultReasoningEffort?:string;supportedReasoningEfforts?:{reasoningEffort:string}[]};
@@ -59,9 +59,9 @@ export function effortPanel(pop:ComposerPopover,model:ModelInfo,current:string,c
   const paintFast=()=>{lightning.setAttribute('aria-pressed',String(fastEnabled));};paintFast();
   const modelButton=button('',back,'la-effort-model');modelButton.setAttribute('aria-label','选择模型');modelButton.append(label,el('span','',(model.displayName||model.model)+' ›'));
   title.append(lightning,modelButton,reset);
-  const slider=el('input','la-effort-slider');slider.type='range';slider.min='0';slider.max=String(Math.max(0,efforts.length-1));slider.step='1';slider.setAttribute('aria-label','思考强度');slider.disabled=efforts.length<2;slider.value=String(Math.max(0,efforts.indexOf(current||model.defaultReasoningEffort||'')));
-  const track=el('div','la-effort-track'),ticks=el('div','la-effort-dots');ticks.setAttribute('aria-hidden','true');efforts.forEach(e=>{const dot=el('span');dot.title=effortLabel(e);ticks.append(dot);});track.append(slider,ticks);
-  const paint=()=>{const value=efforts[Number(slider.value)]||'';Array.from(ticks.children).forEach((dot,i)=>dot.classList.toggle('la-dot-selected',i===Number(slider.value)));label.textContent=effortLabel(value);slider.setAttribute('aria-valuetext',effortLabel(value));const ratio=efforts.length>1?Number(slider.value)/(efforts.length-1):0;slider.style.setProperty('--la-progress',`calc(${ratio*100}% + ${15-ratio*30}px)`);};paint();
+  const slider=el('input','b3-slider la-effort-slider');slider.type='range';slider.min='0';slider.max=String(Math.max(0,efforts.length-1));slider.step='1';slider.setAttribute('aria-label','思考强度');slider.disabled=efforts.length<2;slider.value=String(Math.max(0,efforts.indexOf(current||model.defaultReasoningEffort||'')));
+  const track=el('div','la-effort-track');track.append(slider);
+  const paint=()=>{const value=efforts[Number(slider.value)]||'';label.textContent=effortLabel(value);slider.setAttribute('aria-valuetext',effortLabel(value));};paint();
   const status=el('div','la-popover-note la-effort-status');status.setAttribute('role','status');
   async function toggleFast(){if(!fast)return;lightning.disabled=true;reset.disabled=true;slider.disabled=true;try{await fast.set(!fastEnabled);fastEnabled=!fastEnabled;paintFast();status.textContent=fastEnabled?'快速模式已开启':'快速模式已关闭';}catch(e){status.classList.add('la-effort-error');status.textContent=(e as Error).message;}finally{lightning.disabled=false;reset.disabled=false;slider.disabled=efforts.length<2;}}
   async function resetDefaults(){if(!fast){await commit(model.defaultReasoningEffort||'');return;}lightning.disabled=true;reset.disabled=true;slider.disabled=true;try{await fast.reset();fastEnabled=false;paintFast();slider.value=String(Math.max(0,efforts.indexOf(model.defaultReasoningEffort||'')));paint();status.textContent='已恢复默认';}catch(e){status.classList.add('la-effort-error');status.textContent=(e as Error).message;}finally{lightning.disabled=false;reset.disabled=false;slider.disabled=efforts.length<2;}}

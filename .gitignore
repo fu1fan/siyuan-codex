@@ -12,3 +12,4 @@ artifacts/
 TESTING.md
 scripts/install-send-fix.mjs
 scripts/real-workspace-agent-test.ts
+/release-notes.md

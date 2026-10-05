@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- 修复聊天代码块高亮，使用思源原生渲染接口，跟随思源的代码配色和明暗主题。
+- 思考强度滑块、代码复制按钮及弹层样式复用思源控件和主题变量。
+- 将运行中的会话数量移到标题栏 Codex 右侧，为会话标签留出空间。
+- 保留代码复制原文，支持流式代码高亮；超长代码块降级为纯文本，避免阻塞界面。
+- GitHub Release 说明仅包含当前版本更新，不再重复历史更新内容。
+
 ## 0.4.8
 
 - Add note and chat text annotations with optional comments and compact source locations for reading surrounding context.

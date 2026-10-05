@@ -27,4 +27,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" package.zip siyuan-codex-*.zip --verify-tag --title "SiYuan Codex $RELEASE_TAG" --notes-file CHANGELOG.md
+        run: |
+          node scripts/release-notes.mjs
+          gh release create "$RELEASE_TAG" package.zip siyuan-codex-*.zip --verify-tag --title "SiYuan Codex $RELEASE_TAG" --notes-file release-notes.md

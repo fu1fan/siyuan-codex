@@ -18,7 +18,7 @@ test('plugin persists the activity switch and reads getActiveTab only when enabl
   b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='host'?`
    export class Host{static tab;static reads=[];static saveError;}
    export class Plugin{data={};loadData(n){return Promise.resolve(structuredClone(this.data[n]));}async saveData(n,d){if(Host.saveError)return {code:-1,msg:Host.saveError};this.data[n]=structuredClone(d);return {code:0};}}
-   export class Dialog{};export class Protyle{};
+   export class Dialog{};export class Protyle{};export class ProtyleMethod{static highlightRender(){}};
    export const showMessage=()=>{},getActiveEditor=()=>undefined,openTab=()=>{},getActiveTab=wndActive=>{Host.reads.push(wndActive);return Host.tab;};
   `:`
    export const expandPath=v=>v,defaults={cwd:'',model:'',activeTabContext:false,sandbox:'read-only',mcpEnabled:false},resolveBinary=()=>'',validateSettings=s=>s.cwd,threadOptions=s=>({cwd:s.cwd});

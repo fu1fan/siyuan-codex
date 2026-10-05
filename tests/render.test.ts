@@ -2,8 +2,48 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-ignore
 import {JSDOM} from 'jsdom';
-import {renderMarkdown,enhanceMarkdown} from '../src/render';
-function fixture(){const dom=new JSDOM('<div id="body"></div>',{url:'http://localhost/'});Object.assign(globalThis,{window:dom.window,document:dom.window.document});return {dom,body:document.querySelector<HTMLElement>('#body')!};}
+import {renderMarkdown,enhanceMarkdown,setMarkdownHighlighter} from '../src/render';
+function fixture(){setMarkdownHighlighter();const dom=new JSDOM('<div id="body"></div>',{url:'http://localhost/'});Object.assign(globalThis,{window:dom.window,document:dom.window.document});return {dom,body:document.querySelector<HTMLElement>('#body')!};}
+test('code fences use the host typography contract and preserve copy text after host changes',async()=>{
+ const {dom,body}=fixture();const source='class User:\n    @classmethod\n    def from_dict(cls, data):\n        return cls(data["name"], 42) # 注释';
+ let calls=0;setMarkdownHighlighter(element=>{
+  calls++;assert.ok(element.classList.contains('b3-typography'));
+  for(const code of element.querySelectorAll('.code-block code')){assert.ok(code.classList.contains('hljs'));code.textContent+='\n';code.setAttribute('data-render','true');}
+ });
+ for(const language of ['python','py','Python']){
+  renderMarkdown(body,'```'+language+'\n'+source+'\n```');
+  assert.equal(body.querySelector('pre')!.dataset.language,language.toLowerCase());
+  assert.equal(body.querySelector('code')!.textContent,source);
+  await enhanceMarkdown(body);assert.equal(body.querySelector('code')!.textContent,source+'\n');
+ }
+ await enhanceMarkdown(body);assert.equal(calls,3);
+ let copied='';Object.defineProperty(globalThis,'navigator',{configurable:true,value:{clipboard:{writeText:async(text:string)=>{copied=text;}}}});
+ body.querySelector<HTMLButtonElement>('button')!.click();await Promise.resolve();assert.equal(copied,source);
+ renderMarkdown(body,'```python\ndef incomplete(x):\n    return "hello',true);await enhanceMarkdown(body);assert.equal(calls,4);
+ assert.match(body.querySelector('code')!.textContent!,/incomplete/);setMarkdownHighlighter();dom.window.close();
+});
+test('host highlighter defers hidden history, retries synchronous failure and skips oversized blocks',async()=>{
+ const {dom,body}=fixture();let calls=0;let fail=true;
+ setMarkdownHighlighter(()=>{calls++;if(fail)throw Error('not ready');});
+ renderMarkdown(body,'```python\nprint(1)\n```');
+ const details=document.createElement('details');body.replaceWith(details);details.append(body);
+ await enhanceMarkdown(details);assert.equal(calls,0);
+ details.open=true;await enhanceMarkdown(details);assert.equal(calls,1);fail=false;await enhanceMarkdown(details);assert.equal(calls,2);
+ await enhanceMarkdown(details);assert.equal(calls,2);
+ renderMarkdown(body,'```python\n'+'x'.repeat(50001)+'\n```');await enhanceMarkdown(details);assert.equal(calls,2);
+ setMarkdownHighlighter();dom.window.close();
+});
+test('unknown, unlabelled and oversized fences stay escaped plain text; inline code stays separate',()=>{
+ const {dom,body}=fixture();const source='<script>alert(1)</script> & "quote"';
+ for(const language of ['','unknown-language','text','html']){
+  renderMarkdown(body,'```'+language+'\n'+source+'\n```\n\n`class User`');
+  assert.equal(body.querySelector('pre code')!.textContent,source);assert.equal(body.querySelector('script'),null);
+  assert.equal(body.querySelector('p code span'),null);
+  if(language!=='html')assert.equal(body.querySelector('pre span'),null);
+ }
+ const large='x'.repeat(50001);renderMarkdown(body,'```python\n'+large+'\n```');assert.equal(body.querySelector('code')!.textContent,large);assert.equal(body.querySelector('code span'),null);
+ dom.window.close();
+});
 test('Codex math delimiters, Chinese strong punctuation, tables and fences retain their meaning',()=>{
  const {dom,body}=fixture();renderMarkdown(body,String.raw`**收益来自增加专家权重的复用次数，而不是减少计算量。**实际路由不同。
 

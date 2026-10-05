@@ -35,6 +35,7 @@ export class ChatView {
   private log=el('div','la-log');private scroll=el('div','la-messages-scroll');private approvals=el('div','la-approvals');private status=el('div','la-status');
   readonly input:Composer;
   private queue=el('div','la-queue');private messageEdit?:{id:string;text:string;pending:boolean;error?:string};private queueKey='';private queueEdits=new Map<string,string>();
+  private runningCount=el('span','la-session-count');
   private messageEdits=new Map<string,NonNullable<ChatView['messageEdit']>>();private scrollPositions=new Map<string,number>();
   private send:HTMLButtonElement;private stop:HTMLButtonElement;private title=el('div','block__logo la-title');
   private history=el('section','la-history-panel');private historySearch=el('input','b3-text-field');private historyList=el('div','la-history-list');
@@ -61,7 +62,7 @@ export class ChatView {
   constructor(public root:HTMLElement,private chat:()=>ChatSession,private actions:Actions){
     root.classList.add('la-panel');
     const head=el('div','block__icons la-head');
-    head.append(this.title);
+    const heading=el('div','la-heading');this.runningCount.hidden=true;heading.append(this.title,this.runningCount);head.append(heading);
     if(actions.directory){this.directory=iconButton('工作目录','iconFolder',()=>actions.directory!(this.directory!),'block__icon la-directory');this.directory.append(el('span','la-directory-label'));this.directory.setAttribute('aria-haspopup','dialog');this.directory.addEventListener('click',e=>e.stopPropagation());head.append(this.directory);}
     this.historyButton=iconButton('对话历史','iconFolderClock',()=>{this.history.hidden=!this.history.hidden;this.cancelCodexSearch();if(!this.history.hidden){this.historyScope.value='plugin';this.historySearch.placeholder='搜索插件对话';this.renderHistory();this.historySearch.focus();}},'block__icon la-history-trigger');
     head.append(iconButton('新对话','iconAdd',actions.newChat),this.historyButton,iconButton('设置','iconSettings',actions.settings),iconButton('收起','iconMin',()=>actions.close?.()));
@@ -209,7 +210,7 @@ export class ChatView {
     const ids=new Set([active,...list.slice(0,3).map(s=>s.id),...list.filter(s=>s.state==='running'||s.state==='waiting'||s.unread).map(s=>s.id)]);
     this.sessionSwitcher.hidden=this.sessions.hidden=!list.length;this.sessions.replaceChildren();
     const running=list.filter(s=>s.state==='running'||s.state==='waiting').length;
-    if(running){const count=el('span','la-session-count',`${running} 运行`);count.title=`${running} 个会话正在运行或等待确认`;this.sessions.append(count);}
+    this.runningCount.hidden=!running;this.runningCount.textContent=running?`${running} 运行`:'';this.runningCount.title=running?`${running} 个会话正在运行或等待确认`:'';
     for(const session of list.filter(s=>ids.has(s.id))){
       const state=session.state||'idle',label=sessionStateLabel[state];
       const item=el('div','la-session-item');item.dataset.sessionId=session.id;item.dataset.active=String(session.id===active);item.dataset.state=state;

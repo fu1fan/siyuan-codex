@@ -9,3 +9,5 @@
 首次上架：fork [siyuan-note/bazaar](https://github.com/siyuan-note/bazaar)，从最新 `main` 建分支，仅向 `plugins.txt` 添加 `fu1fan/siyuan-codex` 一行，按官方 PR 模板提交审核。上架需等待维护者合并；后续版本只需更新 Release，不重复申请。
 
 发布包只包含运行文件、说明、截图与依赖许可证。源码通过公开仓库及 GitHub 标签提供，不打包本机工作区、会话、凭据、测试日志或开发依赖。
+
+Release 正文由 `node scripts/release-notes.mjs` 从 `CHANGELOG.md` 提取与 `plugin.json` 版本完全匹配的一节；历史章节保留在仓库中，不重复发布到新版 Release。缺失或空章节会中止发布。

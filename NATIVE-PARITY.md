@@ -1,3 +1,26 @@
+# UI API 与主题复用检查（2026-10-05）
+
+本次依据项目安装的 `siyuan` 1.2.8 类型声明，以及本机 SiYuan 桌面构建的实际导出与渲染实现检查。插件运行时只调用公开 API，不复制宿主内部模块。
+
+| 宿主能力 | 插件使用方式与本次处理 |
+| --- | --- |
+| `Plugin.addDock`、`addCommand`、`openTab` | 已用于侧栏、快捷入口及打开笔记，保持现有接入。 |
+| `Dialog`、`showMessage` | 已用于设置、欢迎页、独立聊天窗口和消息通知，保持现有接入。 |
+| `Protyle` lite 编辑器 | 输入区已使用，保留宿主块引用提示、编辑与撤销行为。 |
+| `ProtyleMethod.highlightRender` | 本次接入助手 Markdown 代码块；输出 `.b3-typography .code-block code.hljs` 与父块 `data-language`，在内容挂载后调用。宿主负责语言库和主题样式。 |
+| `codeBlockThemeLight` / `codeBlockThemeDark` | 完全沿用宿主选择与 `protyleHljsStyle` 更新；移除插件自带高亮库及独立明暗语法配色。 |
+| `b3-button`、`b3-text-field`、`b3-select`、`block__icon`、`ariaLabel` | 已使用的宿主 CSS 控件。代码复制按钮也使用宿主按钮类；这些是样式约定，并非 JS 组件 API。 |
+| `b3-slider` | 本次替换思考强度滑块的自绘轨道和滑块头，保留离散强度值、键盘输入及异步保存逻辑。 |
+| `--b3-menu-background`、`--b3-dialog-shadow`、`--b3-theme-error` | 弹层表面、阴影和权限风险颜色改为宿主变量；代码背景使用 `--b3-protyle-code-background`。 |
+| `Menu`、`confirm`、`openInputDialog`、`Setting` | 已核对公开接口。现有设置已经在原生 `Dialog` 中；搜索建议、多步骤目录选择、模型异步保存和行内会话删除具有自己的状态及焦点行为，保留业务容器，复用宿主控件和变量。宿主传入的笔记选区 `Menu` 继续直接扩展。 |
+| `mathRender`、`mermaidRender`、`graphvizRender`、`chartRender` 等 | 公开富内容渲染 API 可用。现有公式/图表已加载宿主提供的 KaTeX/Mermaid 资源；本次保留其流式定界、隐藏历史延迟渲染、错误原文和 SVG 清理逻辑。其他图表种类不自动新增。 |
+
+代码复制保留高亮前原文，避免宿主渲染补换行影响剪贴板；无语言及未知语言由宿主按纯文本处理；超过 50,000 字符的代码块保持纯文本，避免同步高亮阻塞界面。插件卸载时解除高亮适配器，不移除宿主共享的脚本或主题样式。
+
+验证方式：`scripts/highlight-preview.mjs` 读取已安装桌面构建的高亮及代码主题模块，在浏览器中配合宿主实际 JS/CSS 资源验证四种配色和滑块交互。测试装配器只替换资源加载/模块边界，不模拟语法分析与配色；该方法不等同于原生桌面侧栏验收。最新证据见 `TESTING.md`。
+
+---
+
 # 内置智能体对照：0.2.0
 
 参考思源开源仓库 revision `158812497497c6fa8a6d1031bfa2f025a61ee5c2`（2026-10-01 获取）。
