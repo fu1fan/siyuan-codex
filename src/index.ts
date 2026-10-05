@@ -41,19 +41,19 @@ export default class SiYuanCodex extends Plugin {
   private workspaceError='';
   private standaloneRoot=codexProjectlessRoot();
   private standaloneProbe?:{client:CodexClient;binary:string;ready:Promise<void>;starting:boolean};
-  private currentDoc?:string;private selection='';
+  private currentDoc?:string;
   private historyOpenEpoch=0;
   private welcomePending=false;private welcomeDialog?:Dialog;
-  private selectionListener=()=>{const sel=window.getSelection();const anchor=sel?.anchorNode;const parent=anchor instanceof Element?anchor:anchor?.parentElement;if(!parent?.closest('.la-panel')&&parent?.closest('.protyle-wysiwyg')&&sel?.toString().trim())this.selection=sel.toString().slice(0,60000);};
-  private editorListener=({detail,type}:any)=>{const id=detail?.protyle?.block?.rootID||getActiveEditor(false)?.protyle?.block?.rootID;if(id){if(id===this.currentDoc&&type==='click-editorcontent'&&!this.workspaceError)return;if(id!==this.currentDoc)this.selection='';this.currentDoc=id;void this.ready.then(()=>this.followWorkspace(id)).catch(e=>showMessage(e.message));}};
+  private editorListener=({detail,type}:any)=>{const id=detail?.protyle?.block?.rootID||getActiveEditor(false)?.protyle?.block?.rootID;if(id){if(id===this.currentDoc&&type==='click-editorcontent'&&!this.workspaceError)return;this.currentDoc=id;void this.ready.then(()=>this.followWorkspace(id)).catch(e=>showMessage(e.message));}};
+  private selectionMenuListener=({detail}:any)=>{if(detail?.range&&detail?.menu)this.view?.addSelectionMenu(detail.menu,detail.range);};
   onload(){
     this.addIcons(codexSymbol);
     this.chat=this.makeChat(newSession(''));
     const self=this;
     this.addDock({type:'chat',config:{position:'RightBottom',size:{width:400,height:0},icon:'iconSiYuanCodex',title:'思源 Codex'},data:{},init(){self.mount(this.element as HTMLElement);}});
     this.addCommand({langKey:'openSiYuanCodex',langText:'打开思源 Codex',hotkey:'⌥⇧A',execute:()=>this.openPanel()});
+    this.eventBus.on('open-menu-content',this.selectionMenuListener);
     this.eventBus.on('switch-protyle',this.editorListener);this.eventBus.on('loaded-protyle-static',this.editorListener);this.eventBus.on('click-editorcontent',this.editorListener);
-    document.addEventListener('mouseup',this.selectionListener);document.addEventListener('keyup',this.selectionListener);
     this.ready=this.load();
   }
   onLayoutReady(){void this.ready.then(()=>{if(this.welcomePending&&!this.disposed)void this.showWelcome();});}
@@ -160,7 +160,7 @@ export default class SiYuanCodex extends Plugin {
     send:async(text,refs=[])=>{const chat=this.chat;const epoch=this.contextEpoch;await this.ready;if(this.chat!==chat)return false;this.workspacePreparing=true;try{await this.followWorkspace(this.activeDocument(),true);
       if(this.chat!==chat||epoch!==this.contextEpoch||this.disposed)return false;
       if(this.workspaceError&&followsDocument(chat.session,chat.busy))throw Error(this.workspaceError);
-      const draftAttachments=this.attachments;const attachments=await resolveReferences(refs,draftAttachments,this.noteAssetOptions());
+      const draftAttachments=[...this.attachments];const attachments=await resolveReferences(refs,draftAttachments,this.noteAssetOptions());
       if(this.chat!==chat||epoch!==this.contextEpoch||this.disposed)return false;
       if(this.chat.session.title==='新对话')this.chat.session.title=text.slice(0,32);
       const accepted=chat.busy||chat.session.queue?.length?chat.enqueue(text+contextPrompt(attachments),text,attachments):await chat.send(text+contextPrompt(attachments),text,undefined,attachments);if(accepted){chat.session.draftAttachments=(chat.session.draftAttachments||[]).filter(a=>!draftAttachments.includes(a));if(this.chat===chat){this.contextEpoch++;this.view?.update();}}this.persist();return accepted;}finally{if(this.chat===chat)this.workspacePreparing=false;}},
@@ -195,7 +195,7 @@ export default class SiYuanCodex extends Plugin {
     session.draftAttachments=[];
     const prefix=sideConversationPrefix(source.session.messages);
     const changed=()=>{if(root.isConnected)view.update();this.scheduleSave();};
-    view=new ChatView(root,()=>side,{...this.activityMenuActions(),composer:nativeComposer(this.app),draftChanged:()=>this.scheduleSave(),send:async(text,inline=[])=>{const refs=session.draftAttachments||[],attached=await resolveReferences(inline,refs,this.noteAssetOptions()),prompt=text+contextPrompt(attached);if(this.disposed||this.chats.get(session.id)!==side)return false;const accepted=side.busy||side.session.queue?.length?side.enqueue(prompt,text,attached):await side.send(prompt,text,undefined,attached);if(accepted){session.draftAttachments=(session.draftAttachments||[]).filter(a=>!refs.includes(a));changed();}return accepted;},stop:()=>{void side.interrupt().catch(e=>showMessage(e.message));},settings:()=>showMessage('侧边聊天沿用打开时的模型和权限设置。'),newChat:()=>showMessage('请关闭此窗口后从主会话打开新的侧边聊天。'),select:()=>{},list:()=>[],attach:()=>this.attach(side),drop:ids=>this.attachIDs(ids,side),searchNotes:searchNoteTitles,workspace:()=>window.siyuan?.config?.system?.workspaceDir||'',clear:()=>{session.draftAttachments=[];changed();},context:()=>'',attachments:()=>session.draftAttachments||[],removeAttachment:i=>{const refs=session.draftAttachments||[];if(refs[i]?.media)this.mediaSources.delete(refs[i].media!.key);refs.splice(i,1);changed();},importMedia:sources=>this.addMedia(sources,session.draftAttachments,changed),retryMedia:key=>this.retryMedia(key,session.draftAttachments,changed),previewMedia:a=>this.previewMedia(a),close:()=>dialog.destroy(),error:message=>showMessage(message)});
+    view=new ChatView(root,()=>side,{...this.activityMenuActions(),captureNoteSelections:false,editAttachments:items=>{session.draftAttachments=items;changed();},composer:nativeComposer(this.app),draftChanged:()=>this.scheduleSave(),send:async(text,inline=[])=>{const refs=[...(session.draftAttachments||[])],attached=await resolveReferences(inline,refs,this.noteAssetOptions()),prompt=text+contextPrompt(attached);if(this.disposed||this.chats.get(session.id)!==side)return false;const accepted=side.busy||side.session.queue?.length?side.enqueue(prompt,text,attached):await side.send(prompt,text,undefined,attached);if(accepted){session.draftAttachments=(session.draftAttachments||[]).filter(a=>!refs.includes(a));changed();}return accepted;},stop:()=>{void side.interrupt().catch(e=>showMessage(e.message));},settings:()=>showMessage('侧边聊天沿用打开时的模型和权限设置。'),newChat:()=>showMessage('请关闭此窗口后从主会话打开新的侧边聊天。'),select:()=>{},list:()=>[],attach:()=>this.attach(side),drop:ids=>this.attachIDs(ids,side),searchNotes:searchNoteTitles,workspace:()=>window.siyuan?.config?.system?.workspaceDir||'',clear:()=>{session.draftAttachments=[];changed();},context:()=>'',attachments:()=>session.draftAttachments||[],removeAttachment:i=>{const refs=session.draftAttachments||[];if(refs[i]?.media)this.mediaSources.delete(refs[i].media!.key);refs.splice(i,1);changed();},importMedia:sources=>this.addMedia(sources,session.draftAttachments,changed),retryMedia:key=>this.retryMedia(key,session.draftAttachments,changed),previewMedia:a=>this.previewMedia(a),close:()=>dialog.destroy(),error:message=>showMessage(message)});
     session.queue=[{...structuredClone(q),promptPrefix:prefix+(q.promptPrefix||''),text:prefix+q.text}];session.queuePaused=true;view.update();source.removeQueued(id);
     dialog=new Dialog({title:'侧边聊天 · 关闭窗口后仍可在会话条继续',content:'<div class="la-side-host"></div>',width:'480px',destroyCallback:()=>{view.destroy();this.sideViews.delete(session.id);this.persist();this.dialogs.delete(dialog);this.view?.update();}});dialog.element.querySelector('.la-side-host')!.append(root);this.sideViews.set(session.id,{view,dialog});this.dialogs.add(dialog);this.persist();this.view?.update();
   }
@@ -433,8 +433,8 @@ export default class SiYuanCodex extends Plugin {
     this.view?.destroy();this.view=undefined;for(const dialog of this.dialogs)dialog.destroy();
     for(const chat of this.chats.values()){chat.onChange=()=>{};if(chat.busy)chat.session.lastOutcome='stopped';chat.disconnect();}
     if(this.saveTimer)clearTimeout(this.saveTimer);this.persist();this.disposed=true;this.chats.clear();this.sideViews.clear();
+    this.eventBus.off('open-menu-content',this.selectionMenuListener);
     this.eventBus.off('switch-protyle',this.editorListener);this.eventBus.off('loaded-protyle-static',this.editorListener);this.eventBus.off('click-editorcontent',this.editorListener);
-    document.removeEventListener('mouseup',this.selectionListener);document.removeEventListener('keyup',this.selectionListener);
     for(const client of this.auxiliaryClients)client.dispose();this.auxiliaryClients.clear();
     for(const preview of this.mediaPreviews.values())void preview.then(url=>{if(url)URL.revokeObjectURL(url);});this.mediaPreviews.clear();this.mediaSources.clear();
     for(const dialog of this.dialogs)dialog.destroy();

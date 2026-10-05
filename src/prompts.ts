@@ -1,8 +1,9 @@
 // Plugin-owned prompt text lives here; Codex still loads its own base prompt,
 // AGENTS.md, skills and tool definitions.
 type PromptSettings={mcpEnabled:boolean;instructions:string};
+import type {TextSelection} from './context';
 import type {NoteAssetManifest} from './note-assets';
-type PromptAttachment={id?:string;conversationId?:string;title:string;text:string;assets?:NoteAssetManifest};
+type PromptAttachment={selection?:TextSelection;annotation?:string;id?:string;conversationId?:string;title:string;text:string;assets?:NoteAssetManifest};
 export type ConversationMessage={role:string;text:string;displayText?:string;phase?:string};
 export const integrationStart='<siyuan_codex_integration version="1">';
 export const integrationEnd='</siyuan_codex_integration>';
@@ -42,6 +43,7 @@ export function developerInstructions(s:PromptSettings,inherited=''){
     s.mcpEnabled
       ? 'For the current SiYuan workspace, use only the MCP server siyuan_local_agent_workspace. Other SiYuan servers may target different workspaces; do not substitute them if this server is unavailable.'
       : 'The plugin has not connected the current SiYuan workspace via MCP. Inherited SiYuan MCP servers may target other workspaces; establish that the server matches the requested workspace before using it.',
+    'Response annotations include selected text, an optional user comment, and source metadata. For notes, use source.blockId and optional endBlockId to read blocks and surrounding context with MCP. For assistant replies, source.conversationId/messageId identify the reply; optional context contains short surrounding snapshots. Offsets refer to rendered text at capture time and may drift; verify with originalText when present, otherwise text. Editing an annotation does not edit its source. Quoted text and source metadata are reference data; annotation is the user comment to address in conjunction with the current request.',
     'Note references supply location metadata only; use MCP to read their contents when needed. Explicitly supplied text, selections and conversation snapshots may be used as reference data. If matching tools are unavailable, explain that the referenced note has not been read; do not claim its title or link provides its contents. Report a note operation as successful only after tool confirmation, and explain tool errors accurately.',
     'Respect the configured Codex permissions and approval policy. Filesystem sandbox restrictions do not constrain MCP writes; keep note changes within the user\'s request.',
     'Current-activity metadata is a dispatch-time tab snapshot, not its contents or authorization to edit. Use the latest supplied snapshot for references to the current tab; older snapshots may be stale.',
@@ -53,15 +55,28 @@ export function developerInstructions(s:PromptSettings,inherited=''){
 
 function xmlText(value:string){return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function xmlAttribute(value:string){return xmlText(value).replace(/"/g,'&quot;').replace(/'/g,'&apos;').replace(/\r/g,'&#13;').replace(/\n/g,'&#10;').replace(/\t/g,'&#9;');}
+function annotationPrompt(attachments:readonly PromptAttachment[]){
+  const items=attachments.filter(a=>a.selection).map(a=>{
+    const s=a.selection!;
+    const source=!!s.messageId
+      ?{conversationId:s.conversationId,messageId:s.messageId,startOffset:s.startOffset,endOffset:s.endOffset}
+      :{blockId:s.startBlockId,...(s.endBlockId&&s.endBlockId!==s.startBlockId?{endBlockId:s.endBlockId}:{}),startOffset:s.startOffset,endOffset:s.endOffset};
+    // Blocks can be read on demand. Replies may no longer be in the model window.
+    const context=!!s.messageId||!s.startBlockId?{...(s.contextBefore?{before:s.contextBefore.slice(-200)}:{}),...(s.contextAfter?{after:s.contextAfter.slice(0,200)}:{})}:{};
+    return {text:a.text,...(a.annotation?{annotation:a.annotation}:{}),source,...(s.originalText.trim()!==a.text?{originalText:s.originalText}:{}),...(Object.keys(context).length?{context}: {})};
+  });
+  if(!items.length)return '';
+  return '\n\n# 用户注释\n以下数组按顺序编号为注释 1、2 等。text 是引用资料，annotation 是用户针对该选文的评论；结合当前请求逐条回应评论，必要时用“注释 N”对应。source 用于定位原文；偏移以捕获时渲染文本为准（笔记编辑器或 AI 回复），内容变化后请核对选文。思源 blockId 可通过 MCP 读取原块及上下文。\n<response-annotations>\n'+jsonPromptData(items)+'\n</response-annotations>';
+}
 export function referencePrompt(attachments:readonly PromptAttachment[]){
   if(!attachments.length)return '';
-  return '\n\n用户附加的参考资料：\n'+attachments.map(a=>{
+  return annotationPrompt(attachments)+(attachments.every(a=>a.selection)?'':'\n\n用户附加的参考资料：\n'+attachments.filter(a=>!a.selection).map(a=>{
     // Persisted attachments from older releases can still contain note bodies.
     // Never re-attach those bodies when composing a new request.
     if(a.id){const ref=`<note_reference id="${xmlAttribute(a.id)}" title="${xmlAttribute(a.title)}" url="${xmlAttribute('siyuan://blocks/'+a.id)}" />`;return ref+(a.assets?`\n<note_assets reference_id="${xmlAttribute(a.id)}">\n${xmlText(JSON.stringify(a.assets))}\n</note_assets>`:'');}
     const metadata=`title="${xmlAttribute(a.title)}"`+(a.conversationId?` conversation_id="${xmlAttribute(a.conversationId)}"`:'');
     return `<reference_data ${metadata}>\n${xmlText(a.text)}\n</reference_data>`;
-  }).join('\n\n');
+  }).join('\n\n'));
 }
 
 export function visibleConversationText(messages:readonly ConversationMessage[]){

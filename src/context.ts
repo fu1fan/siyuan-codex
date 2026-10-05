@@ -2,7 +2,8 @@ import {referencePrompt,visibleConversationText,type ConversationMessage} from '
 import {noteAssetManifest,type NoteAssetManifest,type NoteAssetOptions} from './note-assets';
 import {sameLocalPath} from './path-identity';
 export type Reference = {id:string;title:string};
-export type Attachment = {id?:string;conversationId?:string;title:string;text:string;assets?:NoteAssetManifest;media?:{key:string;kind:'image'|'file';marker:string;path?:string;url?:string;size?:number;status?:'loading'|'error';error?:string}};
+export type TextSelection = {source:string;originalText:string;startBlockId?:string;endBlockId?:string;conversationId?:string;messageId?:string;startOffset:number;endOffset:number;contextBefore:string;contextAfter:string};
+export type Attachment = {selection?:TextSelection;selectionMode?:'latest'|'manual';annotation?:string;id?:string;conversationId?:string;title:string;text:string;assets?:NoteAssetManifest;media?:{key:string;kind:'image'|'file';marker:string;path?:string;url?:string;size?:number;status?:'loading'|'error';error?:string}};
 const ID=/^\d{14}-[a-z0-9]{7}$/;
 export const validID=(id:unknown):id is string=>typeof id==='string'&&ID.test(id);
 const GUTTER='application/siyuan-gutter';
@@ -63,7 +64,7 @@ export async function resolveReferences(refs:Reference[],extra:Attachment[],asse
     let remaining=30;
     for(let i=0;i<notes.length;i++){const manifest=manifests[i];manifest.items=manifest.items.slice(0,remaining);if(manifest.status==='available')manifest.truncated=manifest.items.length<manifest.total!;notes[i].assets=manifest;remaining-=manifest.items.length;}
   }
-  if(attachments.reduce((n,a)=>n+a.text.length+(a.assets?JSON.stringify(a.assets).length:0),0)>120000)throw new Error('上下文超过 120,000 字符，请移除部分资料。');
+  if(attachments.reduce((n,a)=>n+a.text.length+(a.annotation?.length||0)+(a.selection?JSON.stringify(a.selection).length:0)+(a.assets?JSON.stringify(a.assets).length:0),0)>120000)throw new Error('上下文超过 120,000 字符，请移除部分资料。');
   return attachments;
 }
 export function contextPrompt(attachments:Attachment[]){return referencePrompt(attachments);}

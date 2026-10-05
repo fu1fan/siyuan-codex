@@ -14,6 +14,7 @@ Continue using your Codex inside SiYuan Notes. Bring notes, attachments and loca
 
 ## Features
 
+- **Text annotations** — keep the latest note selection separately, use the note context menu to add persistent annotations, or select chat text and choose Copy / Add to conversation. Edit selected text and optional comments before sending; source locations help the agent read surrounding context.
 - **Note context** — drag documents or blocks into chat, or reference notes with `@`, the add menu or `[[`. Read, search and edit through the current workspace's MCP tools.
 - **Images and files** — paste or drop images, PDFs and other files. PDFs are read from their original local files, with relevant pages inspected when needed.
 - **Persistent conversations** — keep history, drafts and attachments; run multiple chats concurrently with independent progress and approvals.

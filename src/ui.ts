@@ -1,3 +1,4 @@
+import {SelectionContext} from './selection-context';
 import {conversationRows,workDuration} from './conversation';
 import {mcpApprovalDescription} from './approval';
 import {permissionLabel,permissionIcon} from './permissions';
@@ -18,7 +19,7 @@ export {el,button,setButtonHint,iconButton} from './dom';
 interface Actions extends ComposerMenuActions {
   send:(text:string,refs?:Reference[])=>Promise<boolean|void>;stop:()=>void;settings:()=>void;newChat:()=>void;select:(id:string)=>void;
   list:()=>SessionSummary[];clear:()=>void;context:()=>string;
-  draftChanged?:()=>void;
+  draftChanged?:()=>void;captureNoteSelections?:boolean;
   composer?:ComposerFactory;attachments?:()=>Attachment[];removeAttachment?:(index:number)=>void;
   importMedia?:(sources:MediaSource[])=>Promise<void>;retryMedia?:(key:string)=>Promise<void>;
   previewMedia?:(attachment:Attachment)=>Promise<string>;
@@ -51,7 +52,7 @@ export class ChatView {
   private bottom:HTMLButtonElement;private model:HTMLButtonElement;private effort:HTMLButtonElement;private permission:HTMLButtonElement;
   private followLatest=true;
   private displayedChat?:ChatSession;private restoringDraft=false;private disposed=false;
-  private menu?:ComposerMenu;
+  private menu?:ComposerMenu;private selections?:SelectionContext;
   private directory?:HTMLButtonElement;
   private workStates=new Map<string,boolean>();
   private workTimer?:ReturnType<typeof setInterval>;private runningSince=new Map<string,number>();
@@ -114,9 +115,11 @@ export class ChatView {
       const ids=droppedIDs(e.dataTransfer,actions.workspace?.()||'');if(ids.length&&actions.drop){e.preventDefault();e.stopImmediatePropagation();this.dropCaret(e,host);const restore=this.input.bookmark?.(),value=this.input.value,session=this.chat().session.id;void this.addContext(async()=>{const refs=await actions.drop!(ids);if(this.disposed||session!==this.chat().session.id)return;if(Array.isArray(refs)){if(this.input.value!==value)throw Error('输入内容已变更，请重新拖入引用。');restore?.();for(const ref of refs)this.input.insertReference?.(ref);}}).catch(error=>actions.error?.(error.message));}else if(!host.contains(e.target as Node)){e.preventDefault();}}
       catch(error){e.preventDefault();e.stopImmediatePropagation();actions.error?.((error as Error).message);}
     },true);
+    if(actions.editAttachments){this.selections=new SelectionContext(root,()=>actions.attachments?.()||[],items=>{actions.editAttachments!(items);actions.draftChanged?.();this.update();},message=>actions.error?.(message),actions.captureNoteSelections!==false);composer.insertBefore(this.selections.element,this.context);}
     this.update();
   }
-  destroy(){if(this.displayedChat)this.displayedChat.session.draft=this.input.value;this.disposed=true;this.cancelCodexSearch();this.sessionResize?.disconnect();this.sessionScrollbar.destroy();if(this.workTimer!==undefined)clearInterval(this.workTimer);this.workTimer=undefined;this.menu?.destroy();this.input.destroy();this.bodies.clear();this.workStates.clear();this.runningSince.clear();this.root.classList.remove('la-dragover');}
+  addSelectionMenu(menu:Parameters<SelectionContext['addNoteMenu']>[0],range:Range){this.selections?.addNoteMenu(menu,range);}
+  destroy(){if(this.displayedChat)this.displayedChat.session.draft=this.input.value;this.disposed=true;this.cancelCodexSearch();this.sessionResize?.disconnect();this.sessionScrollbar.destroy();if(this.workTimer!==undefined)clearInterval(this.workTimer);this.workTimer=undefined;this.menu?.destroy();this.selections?.destroy();this.input.destroy();this.bodies.clear();this.workStates.clear();this.runningSince.clear();this.root.classList.remove('la-dragover');}
   private tickWorkTimer(){
     const now=Date.now();for(const summary of this.log.querySelectorAll<HTMLElement>('.la-work[data-running=true]>summary')){
       const label=workDuration(now-Number(summary.dataset.startedAt),true);if(summary.textContent!==label)summary.textContent=label;
@@ -307,9 +310,10 @@ export class ChatView {
     setButtonHint(this.effort,`思考强度：${effort}`);
     setButtonHint(this.model,`模型：${model} · 思考强度：${effort}`);
     const permission=permissionLabel(chat.settings);this.permission.classList.toggle('la-permission-full',chat.settings.permissionMode==='full');this.permission.querySelector('svg')!.outerHTML=permissionIcon(chat.settings.permissionMode);this.permission.querySelector('span')!.textContent=chat.settings.permissionMode==='full'?'完全访问':permission;setButtonHint(this.permission,`审批方式：${permission}`);this.updateSend();this.renderQueue();
+    this.selections?.update(chat.session.id);
     const attachments=this.actions.attachments?.()||[];const contextKey=JSON.stringify(attachments.map(a=>({id:a.id,title:a.title,media:a.media})))+this.actions.context();
     if(contextKey!==this.contextKey){this.contextKey=contextKey;this.context.replaceChildren();
-      if(attachments.length)attachments.forEach((a,i)=>{if(a.media){this.context.append(this.mediaCard(a,i));return;}const chip=el('span','la-context-chip');const name=button(a.title,()=>{if(a.id)this.actions.openReference?.(a.id);},'la-context-name');name.title=a.title;chip.append(name,iconButton('移除 '+a.title,'iconClose',()=>this.actions.removeAttachment?.(i)));this.context.append(chip);});
+      if(attachments.length)attachments.forEach((a,i)=>{if(a.selection)return;if(a.media){this.context.append(this.mediaCard(a,i));return;}const chip=el('span','la-context-chip');const name=button(a.title,()=>{if(a.id)this.actions.openReference?.(a.id);},'la-context-name');name.title=a.title;chip.append(name,iconButton('移除 '+a.title,'iconClose',()=>this.actions.removeAttachment?.(i)));this.context.append(chip);});
       else if(this.actions.context())this.context.append(el('span','',this.actions.context()),button('移除',this.actions.clear));
     }
     const key=JSON.stringify([chat.session.messages,chat.busy,this.messageEdit,chat.session.codex?.adopted]);

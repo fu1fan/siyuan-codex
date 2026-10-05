@@ -160,3 +160,26 @@ test('removing a direct binding restores parent inheritance and keyboard focus s
  document.activeElement!.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));assert.equal(document.activeElement?.tagName,'SUMMARY');
  }finally{s.close();}
 });
+
+test('selected note text reaches the send prompt, survives rejection, and clears after acceptance',async()=>{
+ const env=setup(),{plugin}=env;try{
+  await plugin.load();plugin.ready=Promise.resolve();plugin.mount(document.getElementById('app'));
+  const note=document.createElement('div');note.className='protyle-wysiwyg';note.textContent='所选笔记正文 <reference>';document.body.append(note);
+  const range=document.createRange();range.selectNodeContents(note);window.getSelection()!.removeAllRanges();window.getSelection()!.addRange(range);document.dispatchEvent(new window.Event('mouseup'));
+  assert.equal(plugin.attachments.length,1);let accepted=false,prompt='';plugin.chat.send=async(text:string)=>{prompt=text;return accepted;};
+  plugin.view.input.value='解释选文';await plugin.view.submit();assert.ok(prompt.includes('所选笔记正文 \\u003creference\\u003e'));assert.equal(plugin.attachments.length,1);assert.equal(plugin.view.input.value,'解释选文');
+  accepted=true;await plugin.view.submit();assert.equal(plugin.attachments.length,0);assert.equal(plugin.view.input.value,'');assert.equal(document.querySelector<HTMLElement>('.la-selection-context')!.hidden,true);
+ }finally{plugin.view?.destroy();env.close();}
+});
+
+test('host content menu snapshots a note selection and adds it only on explicit click',async()=>{
+ const env=setup(),{plugin}=env;try{
+  await plugin.load();plugin.ready=Promise.resolve();plugin.mount(document.getElementById('app'));
+  const note=document.createElement('div');note.className='protyle-wysiwyg';note.textContent='手动引用的原文';document.body.append(note);
+  const range=document.createRange();range.selectNodeContents(note);let entry:any;
+  plugin.selectionMenuListener({detail:{range,menu:{addItem:(item:any)=>{entry=item;}}}});
+  assert.equal(entry.label,'添加到 Codex');assert.equal(plugin.attachments.length,0);
+  window.getSelection()!.removeAllRanges();entry.click();assert.equal(plugin.attachments.length,1);assert.equal(plugin.attachments[0].selectionMode,'manual');assert.equal(plugin.attachments[0].text,'手动引用的原文');
+  entry.click();assert.equal(plugin.attachments.length,1);
+ }finally{plugin.view?.destroy();env.close();}
+});
