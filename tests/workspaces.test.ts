@@ -54,8 +54,8 @@ test('nearest document binding wins; malformed bindings are filtered and lock su
  assert.throws(()=>standaloneDirectory('../bad',dir));
 });
 test('new chats use Codex projectless folders; legacy chat keeps its directory',async()=>{
- const s=setup();try{await s.plugin.load();assert.deepEqual(fixture.Host.notices,[]);const first=s.plugin.chat.session;assert.equal(first.workspaceMode,'auto');assert.ok(first.cwd.startsWith(join(dir,'Documents','Codex')));assert.notEqual(first.cwd,process.cwd());assert.ok(existsSync(first.cwd));
- await s.plugin.fresh();assert.equal(s.plugin.chat.session.id,first.id);await s.plugin.chat.send('first question');s.plugin.chat.disconnect();
+ const s=setup();try{await s.plugin.load();assert.deepEqual(fixture.Host.notices,[]);const first=s.plugin.chat.session;assert.equal(first.workspaceMode,'auto');assert.ok(first.cwd.startsWith(join(dir,'Documents','Codex')));assert.notEqual(first.cwd,process.cwd());assert.equal(existsSync(first.cwd),false);await s.plugin.chat.resolveModel();assert.equal(existsSync(first.cwd),false);assert.equal(fixture.CodexClient.calls.at(-1),dir);
+ await s.plugin.fresh();assert.equal(s.plugin.chat.session.id,first.id);await s.plugin.chat.send('first question');assert.ok(existsSync(first.cwd));s.plugin.chat.disconnect();
  await s.plugin.fresh();assert.notEqual(s.plugin.chat.session.cwd,first.cwd);assert.equal(s.plugin.data['settings.json'].cwd,process.cwd());
  const old=newSession(process.cwd());old.messages=[{id:'u',role:'user',text:'old'}];s.plugin.data['sessions.json']={active:old.id,sessions:[old]};await s.plugin.load();assert.equal(s.plugin.chat.session.cwd,process.cwd());assert.equal(s.plugin.chat.session.workspaceLocked,true);
  }finally{s.close();}
@@ -82,11 +82,11 @@ test('custom desktop root refreshes before sending; default folders are not offe
   fixture.CodexClient.desktop={projectlessWorkspaceRoot:join(dir,'custom-root')};await s.plugin.load();const first=s.plugin.chat.session;
   assert.equal(first.standalone.root,join(dir,'custom-root'));assert.ok(first.cwd.startsWith(first.standalone.root));
   fixture.Host.active=child;await s.plugin.workspaceMenu(document.getElementById('anchor')!);assert.match(document.querySelector('.la-workspace-session strong')!.textContent!,/Codex 无项目/);assert.equal(editBinding().value,'');
-  const starts=fixture.CodexClient.calls.filter((cwd:string)=>cwd===dir).length;
+  const metadata=s.plugin.standaloneProbe.client;
   const secondRoot=join(dir,'changed-root');fixture.CodexClient.desktop={projectlessWorkspaceRoot:secondRoot};await s.plugin.followWorkspace(other,true);
-  assert.equal(fixture.CodexClient.calls.filter((cwd:string)=>cwd===dir).length,starts,'config refresh must reuse the metadata process');
-  assert.equal(first.standalone.root,secondRoot);assert.ok(existsSync(first.cwd));assert.equal(s.plugin.chat.settings.cwd,first.cwd);
-  await s.plugin.chat.send('start');s.plugin.chat.busy=false;const pinned=first.cwd;fixture.CodexClient.desktop={projectlessWorkspaceRoot:join(dir,'later-root')};await s.plugin.followWorkspace(other,true);assert.equal(first.cwd,pinned);
+  assert.equal(s.plugin.standaloneProbe.client,metadata,'config refresh must reuse the metadata process');
+  assert.equal(existsSync(join(dir,'custom-root')),false);assert.equal(first.standalone.root,secondRoot);assert.equal(existsSync(first.cwd),false);assert.equal(s.plugin.chat.settings.cwd,first.cwd);
+  await s.plugin.chat.send('start');assert.ok(existsSync(first.cwd));s.plugin.chat.busy=false;const pinned=first.cwd;fixture.CodexClient.desktop={projectlessWorkspaceRoot:join(dir,'later-root')};await s.plugin.followWorkspace(other,true);assert.equal(first.cwd,pinned);
   const client=s.plugin.standaloneProbe.client;s.plugin.onunload();assert.equal(client.alive,false);
  }finally{s.close();}
 });
@@ -95,7 +95,7 @@ test('unstarted legacy auto chat adopts Codex folder but started legacy and manu
   const blank=newSession(join(dir,'.siyuan-local-agent','workspaces','old-blank'));blank.workspaceMode='auto';blank.draft='keep draft';
   s.plugin.data['sessions.json']={active:blank.id,sessions:[blank]};await s.plugin.load();assert.ok(s.plugin.chat.session.cwd.startsWith(join(dir,'Documents','Codex')));assert.equal(s.plugin.chat.session.draft,'keep draft');
   const old=newSession(join(dir,'.siyuan-local-agent','workspaces','old-started'));old.workspaceMode='auto';old.threadId='old-thread';old.messages=[{id:'u',role:'user',text:'old'}];
-  const manual=newSession(dir);manual.workspaceMode='manual';s.plugin.data['sessions.json']={active:old.id,sessions:[old,manual]};await s.plugin.load();assert.equal(s.plugin.chat.session.cwd,old.cwd);assert.equal(s.plugin.sessions.find((x:any)=>x.id===manual.id).cwd,dir);
+  const manual=newSession(dir);manual.workspaceMode='manual';s.plugin.data['sessions.json']={active:old.id,sessions:[old,manual]};await s.plugin.load();assert.equal(s.plugin.chat.session.cwd,old.cwd);assert.equal(existsSync(old.cwd),false);assert.equal(isStandaloneDirectory(old.cwd),false);prepareStandalone(old);assert.equal(existsSync(old.cwd),false);assert.equal(s.plugin.sessions.find((x:any)=>x.id===manual.id).cwd,dir);
  }finally{s.close();}
 });
 test('empty auto chat follows parent, closest override, unbound documents and manual selection; first send pins it',async()=>{

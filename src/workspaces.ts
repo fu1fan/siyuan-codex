@@ -27,7 +27,7 @@ export function sessionStandaloneDirectory(session:Session,root=codexProjectless
   return session.standalone.cwd;
 }
 export function isStandaloneDirectory(cwd:string,root=codexProjectlessRoot()){
-  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}[\\/]siyuan-[a-zA-Z0-9-]+$/.test(relative(root,cwd))||/[\\/]\.siyuan-local-agent[\\/]workspaces[\\/][a-zA-Z0-9-]+[\\/]?$/.test(cwd);
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}[\\/]siyuan-[a-zA-Z0-9-]+$/.test(relative(root,cwd));
 }
 export function prepareStandalone(session:Session){
   const standalone=session.standalone;
@@ -39,7 +39,7 @@ export function prepareStandalone(session:Session){
       mkdirSync(path,{recursive:true});
       const stat=lstatSync(path);if(!stat.isDirectory()||stat.isSymbolicLink())throw Error('Codex 无项目任务目录必须是真实文件夹，不能是符号链接。');
     }
-  }else if(/^[a-zA-Z0-9-]+$/.test(session.id)&&session.cwd===join(homedir(),'.siyuan-local-agent','workspaces',session.id))mkdirSync(session.cwd,{recursive:true});
+  }
 }
 export function validateDirectory(value:string){
   const cwd=expandPath(value.trim());

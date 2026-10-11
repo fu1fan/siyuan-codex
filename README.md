@@ -51,7 +51,7 @@ Requires **SiYuan 3.8.6+ desktop** and **Codex CLI installed on the same operati
 | Directory or document binding | Folder button in the chat header |
 | Find conversations | History button; switch between plugin history and all local Codex threads |
 
-New chats use independent directories under Codex's projectless workspace root (normally `~/Documents/Codex`). Select a project before the first send. Started conversations retain their directory; document bindings apply to new chats.
+New chats use independent directories under Codex's projectless workspace root (normally `~/Documents/Codex`). Select a project before the first send. The directory is created only when the conversation connects, so opening or switching empty chats creates no folders. Started conversations retain their directory; document bindings apply to new chats. Old plugin storage and the former `~/.siyuan-local-agent/workspaces` directory are no longer handled specially.
 
 ## Data and permissions
 

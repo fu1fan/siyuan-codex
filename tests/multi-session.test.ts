@@ -158,7 +158,7 @@ test('history deletion uses the same idle and running rules as tabs',async()=>{
   document.querySelector<HTMLButtonElement>(`.la-history-row[data-session-id="${b.id}"] [aria-label="删除对话"]`)!.click();assert.equal(plugin.sessions.length,1);assert.equal(plugin.chat,a);assert.equal(a.busy,true);assert.equal(document.querySelector<HTMLElement>('.la-session-delete-confirm')!.hidden,true);
  }finally{s.close();}
 });
-test('rebranded plugin migrates missing legacy data, enforces the current kernel, and keeps existing new data',async()=>{
+test('plugin ignores old plugin storage, enforces the current kernel, and keeps current data',async()=>{
  const s=await setup();const workspace=mkdtempSync(join(dir,'legacy-workspace-'));try{
   const storage=join(workspace,'data/storage/petal/siyuan-local-agent');mkdirSync(storage,{recursive:true});
   const files={
@@ -168,8 +168,8 @@ test('rebranded plugin migrates missing legacy data, enforces the current kernel
   };for(const [name,data]of Object.entries(files))writeFileSync(join(storage,name),JSON.stringify(data));
   window.siyuan={config:{system:{workspaceDir:workspace}}};
   const plugin=new fixture.LocalAgent();plugin.app={};await plugin.load();
-  assert.equal(plugin.settings.binary,'/explicit/codex');assert.equal(plugin.settings.instructions,'保留偏好');assert.equal(plugin.settings.mcpEnabled,true);assert.equal(plugin.settings.mcpUrl,'https://localhost/mcp');assert.equal(plugin.chat.settings.mcpEnabled,true);assert.equal(plugin.chat.session.threadId,'saved-thread');assert.equal(plugin.chat.session.draft,'旧草稿');assert.equal(plugin.chat.session.messages[0].attachments[0].media.path,join(storage,'attachments/old.pdf'));assert.equal(plugin.workspaceBindings.length,1);
-  for(const [name,data]of Object.entries(files)){assert.deepEqual(JSON.parse(readFileSync(join(storage,name),'utf8')),data);assert.ok(plugin.data[name]);}
+  assert.notEqual(plugin.settings.binary,'/explicit/codex');assert.notEqual(plugin.settings.instructions,'保留偏好');assert.equal(plugin.settings.mcpEnabled,true);assert.equal(plugin.settings.mcpUrl,'https://localhost/mcp');assert.notEqual(plugin.chat.session.id,'legacy');assert.equal(plugin.workspaceBindings.length,0);
+  for(const [name,data]of Object.entries(files))assert.deepEqual(JSON.parse(readFileSync(join(storage,name),'utf8')),data);
   plugin.data['settings.json']={cwd:dir,instructions:'新偏好'};plugin.data['sessions.json']={sessions:[]};await plugin.load();assert.equal(plugin.settings.instructions,'新偏好');assert.notEqual(plugin.chat.session.id,'legacy');
   await plugin.showSettings();assert.equal(document.querySelector('[aria-label="思源 MCP"]'),null);assert.equal(document.querySelector('[aria-label="思源 MCP 地址"]'),null);assert.equal(document.querySelectorAll('.la-settings-actions button').length,2);
   if(process.env.SIYUAN_CODEX_SETTINGS_PREVIEW==='1')writeFileSync('artifacts/settings-preview.html','<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/host.css"><link rel="stylesheet" href="/style.css"><style>:root{--b3-theme-background:#fff;--b3-theme-on-background:#222;--b3-theme-on-surface:#666;--b3-theme-surface:#f5f5f5;--b3-border-color:#e5e5e5;--b3-theme-primary:#3578e5;--b3-theme-on-primary:#fff;--b3-font-family:system-ui;--b3-border-radius:4px;--b3-font-size:14px}body{margin:20px;background:#eceef1;font-family:system-ui}.la-settings{width:600px;margin:auto;background:white;border-radius:8px}</style>'+document.querySelector('.la-settings')!.outerHTML);

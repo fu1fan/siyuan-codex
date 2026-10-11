@@ -1,3 +1,6 @@
+import {existsSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {prepareStandalone} from './workspaces';
 import type {ModelSelection} from './session-model';
 import {contextPrompt,resolveReferences,type Attachment} from './context';
 import {attachmentInput} from './media';
@@ -37,13 +40,13 @@ export class ChatSession {
   rateLimitLabel(){if(!this.rateLimits)return '尚未读取';return Object.entries(this.rateLimits).flatMap(([name,limit])=>[limit.primary,limit.secondary].filter((w):w is NonNullable<typeof w>=>!!w).map(w=>`${name} · ${w.windowDurationMins? w.windowDurationMins+' 分钟':'额度'}：剩余 ${Math.max(0,100-w.usedPercent)}%`)).join('\n')||'CLI 未提供额度信息';}
   async refreshRateLimits(){
     const client=this.client?.alive?this.client:this.factory(),temporary=client!==this.client,epoch=this.epoch;
-    try{if(temporary)await client.start({...this.settings,mcpEnabled:false});const result=await client.request('account/rateLimits/read',{});if(epoch!==this.epoch)return;this.rateLimits=result.rateLimitsByLimitId||(result.rateLimits?{codex:result.rateLimits}:{});this.onChange();}
+    try{if(temporary)await client.start({...this.settings,cwd:existsSync(this.settings.cwd)?this.settings.cwd:homedir(),mcpEnabled:false});const result=await client.request('account/rateLimits/read',{});if(epoch!==this.epoch)return;this.rateLimits=result.rateLimitsByLimitId||(result.rateLimits?{codex:result.rateLimits}:{});this.onChange();}
     finally{if(temporary)client.dispose();}
   }
   async resolveModel(){
     const epoch=this.epoch,probe=this.factory();this.modelProbe?.dispose();this.modelProbe=probe;
     try{
-      await probe.start({...this.settings,mcpEnabled:false});
+      await probe.start({...this.settings,cwd:existsSync(this.settings.cwd)?this.settings.cwd:homedir(),mcpEnabled:false});
       const [configResult,models]=await Promise.all([probe.request('config/read',{cwd:this.settings.cwd,includeLayers:false}),probe.request('model/list',{})]);
       if(epoch!==this.epoch||this.modelProbe!==probe||this.client?.alive)return;
       const config=configResult.config||{},catalog=models.data||[];
@@ -65,6 +68,7 @@ export class ChatSession {
     this.status='连接 Codex…';this.onChange();
     const task=(async()=>{
       try{
+        prepareStandalone(this.session);
         await client.start(this.settings,this.token(),this.caPath);
         // developerInstructions overrides the CLI config field, so preserve the
         // effective user/project value before adding the integration rules.

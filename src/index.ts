@@ -18,7 +18,7 @@ import type {MediaSource} from './composer-media';
 import {currentActivityPrompt} from './activity';
 import type {NoteAssetOptions} from './note-assets';
 import {sideConversationPrefix} from './prompts';
-import {codexProjectlessRoot,sessionStandaloneDirectory,isStandaloneDirectory,prepareStandalone,validateDirectory,workspaceLocked,followsDocument,readBindings,matchingBinding,readWorkspaceDocument,type WorkspaceBinding} from './workspaces';
+import {codexProjectlessRoot,sessionStandaloneDirectory,isStandaloneDirectory,validateDirectory,workspaceLocked,followsDocument,readBindings,matchingBinding,readWorkspaceDocument,type WorkspaceBinding} from './workspaces';
 import {workspacePanel} from './workspace-menu';
 import {codexSymbol} from './brand';
 import {join} from 'node:path';
@@ -61,7 +61,7 @@ export default class SiYuanCodex extends Plugin {
   onLayoutReady(){void this.ready.then(()=>{if(this.welcomePending&&!this.disposed)void this.showWelcome();});}
   private async load(){
     try{
-      const [settings,state,workspaces,onboarding]=await Promise.all([this.loadPluginData('settings.json'),this.loadPluginData('sessions.json'),this.loadPluginData('workspaces.json'),this.loadData('onboarding.json')]);
+      const [settings,state,workspaces,onboarding]=await Promise.all([this.loadData('settings.json'),this.loadData('sessions.json'),this.loadData('workspaces.json'),this.loadData('onboarding.json')]);
       this.welcomePending=!onboarding?.seen&&!Object.keys(settings||{}).length&&!state?.sessions?.length;
       this.settings={...defaults,...settings,mcpEnabled:true,mcpUrl:`${location.origin}/mcp`};
       await this.refreshStandaloneRoot();
@@ -80,21 +80,8 @@ export default class SiYuanCodex extends Plugin {
       this.chat=this.makeChat(this.sessions.find(s=>s.id===state?.active)||this.sessions[0]);this.chat.session.unread=false;await this.followWorkspace(this.activeDocument());this.view?.update();this.persist();
     }catch(e){showMessage(`思源 Codex 数据加载失败：${(e as Error).message}`);}
   }
-  private async loadPluginData(name:string){
-    const current=await this.loadData(name);
-    if(current!=null&&current!==''&&!(typeof current==='object'&&!Object.keys(current).length))return current;
-    const workspace=window.siyuan?.config?.system?.workspaceDir;if(!workspace)return current;
-    let legacy;
-    try{legacy=JSON.parse(await readFile(join(workspace,'data','storage','petal','siyuan-local-agent',name),'utf8'));}
-    catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return current;throw e;}
-    // Keep legacy files and attachment paths intact; only fill missing new-plugin data.
-    const result=await this.saveData(name,legacy);
-    if(result?.code)throw Error(result.msg||'旧插件数据迁移失败。');
-    return legacy;
-  }
   private makeChat(session:Session){
     const existing=this.chats.get(session.id);if(existing)return existing;
-    if(session.cwd)prepareStandalone(session);
     session.modelSelection??={model:this.settings.model,modelName:this.settings.modelName,reasoningEffort:this.settings.reasoningEffort,fastMode:this.settings.fastMode};
     const chat=new ChatSession(session,{...this.settings,...session.modelSelection,cwd:session.cwd||this.settings.cwd},()=>{if(chat.settings.mcpEnabled&&new URL(chat.settings.mcpUrl).origin!==location.origin)throw new Error('MCP 地址与当前思源不同源，已阻止传递 Token。');return window.siyuan?.config?.api?.token||'';},this.localCA());
     this.chats.set(session.id,chat);
@@ -237,7 +224,6 @@ export default class SiYuanCodex extends Plugin {
   private setWorkspace(cwd:string,mode:'auto'|'manual',binding?:string){
     if(workspaceLocked(this.chat.session,this.chat.busy))throw Error('本会话已固定工作目录，请新建对话后选择。');
     const chat=this.chat;const changed=chat.settings.cwd!==cwd;
-    prepareStandalone({...chat.session,cwd});
     if(!changed&&chat.session.workspaceMode===mode&&chat.session.workspaceBinding===binding&&!this.workspaceError)return;
     if(changed)chat.disconnect();
     Object.assign(chat.session,{cwd,workspaceMode:mode,workspaceBinding:binding});chat.settings={...chat.settings,cwd};
