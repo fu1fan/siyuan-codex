@@ -28,13 +28,13 @@ interface Actions extends ComposerMenuActions {
   queueSide?:(id:string)=>void;
   directory?:(anchor:HTMLElement)=>void;
   searchCodex?:(query:string,cursor?:string)=>Promise<CodexHistoryPage>;openCodex?:(entry:CodexHistoryEntry,isCurrent?:()=>boolean)=>Promise<void>;
-  editMessage?:(id:string,text:string)=>Promise<void>;
+  editMessage?:(id:string,text:string,attachments?:Attachment[])=>Promise<void>;
   editAttachments?:(attachments:Attachment[])=>void;close?:()=>void;error?:(text:string)=>void;
 }
 export class ChatView {
   private log=el('div','la-log');private scroll=el('div','la-messages-scroll');private approvals=el('div','la-approvals');private status=el('div','la-status');
   readonly input:Composer;
-  private queue=el('div','la-queue');private messageEdit?:{id:string;text:string;pending:boolean;error?:string};private queueKey='';private queueEdits=new Map<string,string>();
+  private queue=el('div','la-queue');private messageEdit?:{id:string;text:string;attachments:Attachment[];pending:boolean;error?:string};private queueKey='';private queueEdits=new Map<string,string>();
   private runningCount=el('span','la-session-count');
   private messageEdits=new Map<string,NonNullable<ChatView['messageEdit']>>();private scrollPositions=new Map<string,number>();
   private send:HTMLButtonElement;private stop:HTMLButtonElement;private title=el('div','block__logo la-title');
@@ -346,16 +346,28 @@ export class ChatView {
           const meta=[record.exitCode!==undefined?'退出码 '+record.exitCode:'',record.durationMs!==undefined?workDuration(record.durationMs):''].filter(Boolean).join(' · ');if(meta)body.append(el('div','la-tool-meta',meta));
         }else body.textContent=m.displayText??m.text;
         if(cached?.key!==bodyKey){const media=el('div','la-sent-media');
-        for(const [index,attachment] of (m.attachments||(m.attachment?[m.attachment]:[])).entries()){if(attachment.media){media.append(this.mediaCard(attachment));continue;}const details=el('details','la-attachment');details.dataset.messageId=m.id+':attachment:'+index;details.open=open.has(details.dataset.messageId);details.append(el('summary','',attachment.title),el('div','la-attachment-body',attachment.text));if(attachment.id)details.append(button('打开笔记',()=>this.actions.openReference?.(attachment.id!),'b3-button b3-button--cancel'));body.append(details);}
+        for(const [index,attachment] of (m.role==='user'&&this.messageEdit?.id===m.id?this.messageEdit.attachments:(m.attachments||(m.attachment?[m.attachment]:[]))).entries()){if(attachment.media){media.append(this.mediaCard(attachment));continue;}const details=el('details','la-attachment');details.dataset.messageId=m.id+':attachment:'+index;details.open=open.has(details.dataset.messageId);details.append(el('summary','',attachment.title),el('div','la-attachment-body',attachment.text));if(attachment.annotation)details.append(el('div','la-selection-comment',attachment.annotation));if(attachment.id)details.append(button('打开笔记',()=>this.actions.openReference?.(attachment.id!),'b3-button b3-button--cancel'));body.append(details);}
         if(media.childElementCount)body.prepend(media);}
         card.append(body);
         if(m.role==='user'){const bubble=el('div','la-message-bubble');bubble.append(...Array.from(card.childNodes));card.append(bubble);}
         if(actions&&(m.role==='assistant'||m.role==='user')){card.tabIndex=0;const tools=el('div','la-message-actions');tools.append(iconButton('复制','iconCopy',()=>{void navigator.clipboard.writeText(m.displayText??m.text).catch(e=>this.actions.error?.(e.message));}));
-          if(m.role==='user'&&!chat.busy&&this.actions.editMessage)tools.append(iconButton('编辑','iconEdit',()=>{this.messageEdit={id:m.id,text:m.displayText??m.text,pending:false};this.update();this.log.querySelector<HTMLTextAreaElement>('.la-message-editor textarea')?.focus();}));
+          if(m.role==='user'&&!chat.busy&&this.actions.editMessage)tools.append(iconButton('编辑','iconEdit',()=>{this.messageEdit={id:m.id,text:m.displayText??m.text,attachments:structuredClone(m.attachments||(m.attachment?[m.attachment]:[])),pending:false};this.update();this.log.querySelector<HTMLTextAreaElement>('.la-message-editor textarea')?.focus();}));
           else if(m.role==='assistant'&&this.actions.branch){const branch=iconButton('分支','iconSplitLR',()=>{void this.actions.branch!(m.id).catch(e=>this.actions.error?.(e.message));});branch.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" class="la-branch-icon"><path d="M3 12h6l11-9m-7 0h7v7M12 15l8 6m-7 0h7v-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';branch.disabled=chat.busy;tools.append(branch);}card.append(tools);}
         if(m.role==='user'&&this.messageEdit?.id===m.id){
           const draft=this.messageEdit;card.classList.add('la-editing');const editor=el('div','la-message-editor'),input=el('textarea','b3-text-field');input.value=draft.text;input.setAttribute('aria-label','编辑消息内容');input.disabled=draft.pending;input.oninput=()=>{draft.text=input.value;};
-          const controls=el('div','la-message-edit-actions'),cancel=button('取消',()=>{this.messageEdit=undefined;this.messageEdits.delete(chat.session.id);this.update();},'b3-button b3-button--cancel'),send=button(draft.pending?'发送中…':'发送',()=>{if(!input.value.trim()||draft.pending||chat.busy)return;draft.text=input.value;draft.pending=true;draft.error=undefined;this.update();void this.actions.editMessage!(m.id,draft.text).then(()=>{this.messageEdits.delete(chat.session.id);if(this.chat()===chat&&this.messageEdit===draft)this.messageEdit=undefined;if(!this.disposed)this.update();}).catch(e=>{draft.pending=false;draft.error=e.message;if(!this.disposed)this.update();});},'b3-button');cancel.disabled=draft.pending;send.disabled=draft.pending||chat.busy;controls.append(cancel,send);editor.append(input,controls);if(draft.error)editor.append(el('div','la-queue-error',draft.error));card.querySelector('.la-message-actions')?.remove();const bubble=card.querySelector('.la-message-bubble')!;const attachments=Array.from(bubble.querySelectorAll('.la-attachment,.la-sent-media'));bubble.replaceChildren(...attachments,editor);
+          const controls=el('div','la-message-edit-actions'),cancel=button('取消',()=>{this.messageEdit=undefined;this.messageEdits.delete(chat.session.id);this.update();},'b3-button b3-button--cancel'),send=button(draft.pending?'发送中…':'发送',()=>{if(!input.value.trim()||draft.pending||chat.busy)return;draft.text=input.value;if(draft.attachments.some(a=>a.selection&&!a.text.trim())){draft.error='注释选文不能为空，请修改或删除该注释。';this.update();return;}draft.pending=true;draft.error=undefined;this.update();void this.actions.editMessage!(m.id,draft.text,draft.attachments).then(()=>{this.messageEdits.delete(chat.session.id);if(this.chat()===chat&&this.messageEdit===draft)this.messageEdit=undefined;if(!this.disposed)this.update();}).catch(e=>{draft.pending=false;draft.error=e.message;if(!this.disposed)this.update();});},'b3-button');cancel.disabled=draft.pending;send.disabled=draft.pending||chat.busy;controls.append(cancel,send);editor.append(input,controls);if(draft.error)editor.append(el('div','la-queue-error',draft.error));card.querySelector('.la-message-actions')?.remove();const bubble=card.querySelector('.la-message-bubble')!;const attachments=Array.from(bubble.querySelectorAll('.la-attachment,.la-sent-media'));
+          // Replace only selection cards; note and media attachments keep their previews.
+          for(const [index,item] of draft.attachments.entries()){
+            if(!item.selection)continue;
+            const details=el('details','la-attachment la-annotation-editor');details.open=true;
+            details.append(el('summary','',item.title));
+            const quote=el('textarea','b3-text-field la-selection-editor');quote.value=item.text;quote.maxLength=60000;quote.setAttribute('aria-label','编辑注释选文 '+(index+1));quote.disabled=draft.pending;quote.oninput=()=>{item.text=quote.value;};
+            const comment=el('textarea','b3-text-field la-selection-comment-editor');comment.value=item.annotation||'';comment.maxLength=6000;comment.placeholder='可选评论';comment.setAttribute('aria-label','编辑注释评论 '+(index+1));comment.disabled=draft.pending;comment.oninput=()=>{item.annotation=comment.value||undefined;};
+            const remove=button('删除注释',()=>{draft.attachments=draft.attachments.filter(a=>a!==item);this.update();},'b3-button b3-button--cancel');remove.disabled=draft.pending;
+            details.append(el('div','la-selection-label','所选文本'),quote,el('div','la-selection-label','评论'),comment,remove);
+            const old=attachments.find(a=>(a as HTMLElement).dataset.messageId===m.id+':attachment:'+index);if(old)attachments.splice(attachments.indexOf(old),1,details);else attachments.push(details);
+          }
+          bubble.replaceChildren(...attachments,editor);
         }
         return card;
       };

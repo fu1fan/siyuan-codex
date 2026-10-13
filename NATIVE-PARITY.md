@@ -10,7 +10,7 @@
 | `ProtyleMethod.highlightRender` | 本次接入助手 Markdown 代码块；输出 `.b3-typography .code-block code.hljs` 与父块 `data-language`，在内容挂载后调用。宿主负责语言库和主题样式。 |
 | `codeBlockThemeLight` / `codeBlockThemeDark` | 完全沿用宿主选择与 `protyleHljsStyle` 更新；移除插件自带高亮库及独立明暗语法配色。 |
 | `b3-button`、`b3-text-field`、`b3-select`、`block__icon`、`ariaLabel` | 已使用的宿主 CSS 控件。代码复制按钮也使用宿主按钮类；这些是样式约定，并非 JS 组件 API。 |
-| `b3-slider` | 本次替换思考强度滑块的自绘轨道和滑块头，保留离散强度值、键盘输入及异步保存逻辑。 |
+| 推理强度滑块 | 按用户要求恢复原有粗轨道、圆形滑块与档位圆点，不使用 `b3-slider`；保留离散强度值、键盘输入及异步保存逻辑。 |
 | `--b3-menu-background`、`--b3-dialog-shadow`、`--b3-theme-error` | 弹层表面、阴影和权限风险颜色改为宿主变量；代码背景使用 `--b3-protyle-code-background`。 |
 | `Menu`、`confirm`、`openInputDialog`、`Setting` | 已核对公开接口。现有设置已经在原生 `Dialog` 中；搜索建议、多步骤目录选择、模型异步保存和行内会话删除具有自己的状态及焦点行为，保留业务容器，复用宿主控件和变量。宿主传入的笔记选区 `Menu` 继续直接扩展。 |
 | `mathRender`、`mermaidRender`、`graphvizRender`、`chartRender` 等 | 公开富内容渲染 API 可用。现有公式/图表已加载宿主提供的 KaTeX/Mermaid 资源；本次保留其流式定界、隐藏历史延迟渲染、错误原文和 SVG 清理逻辑。其他图表种类不自动新增。 |

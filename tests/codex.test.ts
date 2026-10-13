@@ -222,3 +222,10 @@ test('vision attachments reach send, queue, steer and regeneration as localImage
  chat.enqueue('排队','排队',[attachment]);c.onEvent({method:'turn/completed',params:{threadId:'thread-1',turn:{status:'completed'}}});await new Promise(r=>setTimeout(r,0));assert.equal(requests.at(-1)!.input[0].text,'排队');assert.deepEqual(requests.at(-1)!.input[1],requests[0].input[1]);
  chat.busy=false;const message=chat.session.messages.find(m=>m.displayText==='排队')!;await chat.editAndRegenerate(message.id,'重新查看');assert.deepEqual(requests.at(-1)!.input[1],requests[0].input[1]);chat.disconnect();
 });
+
+test('regeneration sends the edited annotation payload and supports deleting all attachments',async()=>{
+ const {c,chat}=fixture();await chat.send('old');chat.busy=false;const selected={title:'quote',text:'original quote',annotation:'old comment',selection:{source:'AI 回复' as const,originalText:'original quote',messageId:'answer',startOffset:0,endOffset:14,contextBefore:'',contextAfter:''}};
+ chat.session.messages[0].attachments=[selected];const original=c.request;let input='';c.request=async(method:string,p:any)=>{if(method==='thread/fork')return {thread:{id:'forked'}};if(method==='turn/start')input=p.input[0].text;return original(method,p);};
+ await chat.editAndRegenerate(chat.session.messages[0].id,'edited',[{...selected,text:'edited quote',annotation:'edited comment'}]);assert.match(input,/edited quote/);assert.match(input,/edited comment/);assert.doesNotMatch(input,/old comment/);assert.equal(chat.session.messages[0].attachments![0].selection!.originalText,'original quote');
+ chat.busy=false;await chat.editAndRegenerate(chat.session.messages[0].id,'without annotations',[]);assert.doesNotMatch(input,/response-annotations|edited comment/);assert.deepEqual(chat.session.messages[0].attachments,[]);chat.disconnect();
+});

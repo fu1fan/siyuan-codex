@@ -26,7 +26,8 @@ before(async()=>{
    export const showMessage=m=>Host.notices.push(m),getActiveEditor=()=>Host.active?{protyle:{block:{rootID:Host.active}}}:undefined,getActiveTab=()=>undefined;
   `:args.path==='os'?`export const homedir=()=>${JSON.stringify(dir)};`:args.path==='native'?`import {textareaComposer} from ${JSON.stringify(join(process.cwd(),'src/composer.ts'))};export const nativeComposer=()=>textareaComposer;`: `
    export const expandPath=v=>v;export const defaults={cwd:'',model:'',sandbox:'read-only',mcpEnabled:false},resolveBinary=()=>'',validateSettings=s=>s.cwd,threadOptions=s=>({cwd:s.cwd});
-   export class CodexClient{alive=false;static calls=[];static desktop={};static turnGate;async start(s){this.alive=true;CodexClient.calls.push(s.cwd);}async request(method,p){if(method==='config/read')return{config:{model:'fixture-model',desktop:CodexClient.desktop}};if(method==='model/list')return{data:[]};if(method.startsWith('thread/'))return{thread:{id:'fixture-thread'},model:'fixture-model'};if(method==='turn/start'){await CodexClient.turnGate;return{turn:{id:'fixture-turn'}};}return{};}dispose(){this.alive=false;}}
+   import {existsSync,statSync} from 'node:fs';import {isAbsolute} from 'node:path';
+   export class CodexClient{alive=false;static calls=[];static desktop={};static turnGate;async start(s){if(!isAbsolute(s.cwd)||!existsSync(s.cwd)||!statSync(s.cwd).isDirectory())throw Error('请选择存在的绝对路径作为工作目录。');this.alive=true;CodexClient.calls.push(s.cwd);}async request(method,p){if(method==='config/read')return{config:{model:'fixture-model',desktop:CodexClient.desktop}};if(method==='model/list')return{data:[]};if(method.startsWith('thread/'))return{thread:{id:'fixture-thread'},model:'fixture-model'};if(method==='turn/start'){await CodexClient.turnGate;return{turn:{id:'fixture-turn'}};}return{};}dispose(){this.alive=false;}}
   `,resolveDir:process.cwd()}));
  }}]});const file=join(dir,'plugin.cjs');writeFileSync(file,result.outputFiles[0].contents);fixture=createRequire(import.meta.url)(file);
 });
@@ -58,6 +59,17 @@ test('new chats use Codex projectless folders; legacy chat keeps its directory',
  await s.plugin.fresh();assert.equal(s.plugin.chat.session.id,first.id);await s.plugin.chat.send('first question');assert.ok(existsSync(first.cwd));s.plugin.chat.disconnect();
  await s.plugin.fresh();assert.notEqual(s.plugin.chat.session.cwd,first.cwd);assert.equal(s.plugin.data['settings.json'].cwd,process.cwd());
  const old=newSession(process.cwd());old.messages=[{id:'u',role:'user',text:'old'}];s.plugin.data['sessions.json']={active:old.id,sessions:[old]};await s.plugin.load();assert.equal(s.plugin.chat.session.cwd,process.cwd());assert.equal(s.plugin.chat.session.workspaceLocked,true);
+ }finally{s.close();}
+});
+test('model menu reads an uncreated projectless chat without allocating its folder; bound queries retain their cwd',async()=>{
+ const s=setup();try{
+  await s.plugin.load();const chat=s.plugin.chat,cwd=chat.settings.cwd,allocation=structuredClone(chat.session.standalone);
+  assert.equal(existsSync(cwd),false);await s.plugin.modelMenu(document.getElementById('anchor')!,false);
+  assert.doesNotMatch(document.body.textContent!,/读取模型列表失败|绝对路径/);
+  assert.match(document.body.textContent!,/CLI 未返回可选模型/);assert.equal(fixture.CodexClient.calls.at(-1),dir);
+  assert.equal(chat.settings.cwd,cwd);assert.deepEqual(chat.session.standalone,allocation);assert.equal(existsSync(cwd),false);
+  const calls=fixture.CodexClient.calls.length;await s.plugin.cachedModels();assert.equal(fixture.CodexClient.calls.length,calls,'cache is still keyed by the chat directory');
+  s.plugin.setWorkspace(process.cwd(),'manual');await s.plugin.cachedModels();assert.equal(fixture.CodexClient.calls.at(-1),process.cwd());
  }finally{s.close();}
 });
 test('desktop preference chooses the root; local date and saved allocation survive reload and branches',()=>{

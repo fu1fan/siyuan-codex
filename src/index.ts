@@ -23,6 +23,7 @@ import {workspacePanel} from './workspace-menu';
 import {codexSymbol} from './brand';
 import {join} from 'node:path';
 import {readFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import {homedir} from 'node:os';
 
 declare global {interface Window {siyuan:any;}}
@@ -168,7 +169,7 @@ export default class SiYuanCodex extends Plugin {
     openReference:id=>{openTab({app:this.app,doc:{id}});},
     model:anchor=>{void this.modelMenu(anchor);},effort:anchor=>{void this.modelMenu(anchor,true);},permission:anchor=>this.permissionMenu(anchor),
     directory:anchor=>{void this.workspaceMenu(anchor);},
-    editMessage:async(id,text)=>{await this.chat.editAndRegenerate(id,text);this.persist();},
+    editMessage:async(id,text,attachments)=>{await this.chat.editAndRegenerate(id,text,attachments);this.persist();},
     editAttachments:attachments=>{this.attachments=attachments.map(a=>({...a}));this.contextEpoch++;this.view?.update();},
     rename:(id,title)=>{const s=this.sessions.find(s=>s.id===id);if(s){s.title=title;this.persist();this.view?.update();}},
     delete:(id,terminate)=>this.deleteSession(id,terminate),
@@ -345,7 +346,8 @@ export default class SiYuanCodex extends Plugin {
       const client=new CodexClient(15000);this.auxiliaryClients.add(client);
       cached.pending=(async()=>{
         try{
-          await client.start(settings);
+          // Blank projectless chats allocate their folder only on first send.
+          await client.start({...settings,cwd:existsSync(settings.cwd)?settings.cwd:homedir()});
           const models:ModelInfo[]=[];let cursor:string|null=null;
           do{const result=await client.request('model/list',cursor?{cursor}:{});models.push(...(result.data||[]).filter((m:any)=>typeof m.model==='string'));cursor=result.nextCursor||null;}while(cursor&&!this.disposed);
           if(!this.disposed){cached.models=models;cached.updated=Date.now();}return models;

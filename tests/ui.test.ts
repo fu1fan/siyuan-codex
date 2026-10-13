@@ -93,10 +93,10 @@ test('user hover actions edit the original text and attachments; only assistant 
  const chat=new ChatSession(newSession('/tmp'),{...defaults,cwd:'/tmp'},()=> '');
  chat.session.messages=[{id:'u',role:'user',text:'prompt with context',displayText:'original prompt',attachments:[{title:'note',text:'content'}]},{id:'a',role:'assistant',text:'reply',phase:'final_answer'}];
  let edited:any,branched='';const root=document.getElementById('root')!;
- const view=new ChatView(root,()=>chat,{send:async()=>false,stop:()=>{},settings:()=>{},newChat:()=>{},select:()=>{},list:()=>[],attach:()=>{},clear:()=>{},context:()=>'',editMessage:async(id,text)=>{edited={id,text};},branch:async id=>{branched=id;}});
+ const view=new ChatView(root,()=>chat,{send:async()=>false,stop:()=>{},settings:()=>{},newChat:()=>{},select:()=>{},list:()=>[],attach:()=>{},clear:()=>{},context:()=>'',editMessage:async(id,text,attachments)=>{edited={id,text,attachments};},branch:async id=>{branched=id;}});
  const labels=(selector:string)=>[...root.querySelectorAll(selector+' .la-message-actions button')].map(b=>b.getAttribute('aria-label'));
  assert.deepEqual(labels('.la-user'),['复制','编辑']);assert.deepEqual(labels('.la-assistant'),['复制','分支']);
- root.querySelector<HTMLButtonElement>('[aria-label="编辑"]')!.click();const editor=root.querySelector<HTMLTextAreaElement>('[aria-label="编辑消息内容"]')!;assert.equal(editor.value,'original prompt');assert.equal(view.input.value,'');assert.match(root.querySelector('.la-editing')!.textContent!,/note/);editor.value='revised';const send=[...root.querySelectorAll<HTMLButtonElement>('.la-message-edit-actions button')].find(b=>b.textContent==='发送')!;send.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(edited,{id:'u',text:'revised'});chat.busy=true;view.update();assert.equal(root.querySelector('[aria-label="编辑"]'),null);chat.busy=false;view.update();
+ root.querySelector<HTMLButtonElement>('[aria-label="编辑"]')!.click();const editor=root.querySelector<HTMLTextAreaElement>('[aria-label="编辑消息内容"]')!;assert.equal(editor.value,'original prompt');assert.equal(view.input.value,'');assert.match(root.querySelector('.la-editing')!.textContent!,/note/);editor.value='revised';const send=[...root.querySelectorAll<HTMLButtonElement>('.la-message-edit-actions button')].find(b=>b.textContent==='发送')!;send.click();await new Promise(r=>setTimeout(r,0));assert.deepEqual(edited,{id:'u',text:'revised',attachments:[{title:'note',text:'content'}]});chat.busy=true;view.update();assert.equal(root.querySelector('[aria-label="编辑"]'),null);chat.busy=false;view.update();
  root.querySelector<HTMLButtonElement>('[aria-label="分支"]')!.click();assert.equal(branched,'a');view.destroy();dom.window.close();
 });
 
@@ -149,4 +149,23 @@ test('elapsed timer ticks without stream events, preserves forms and expansion, 
   completed.open=true;t.mock.timers.tick(10000);view.update();assert.equal(completed.open,true);assert.equal(completed.querySelector('summary')!.textContent,'用时 26分钟 27秒');
   active=b;view.update();const last=root.querySelector('.la-work>summary')!.textContent;view.destroy();assert.equal((view as any).workTimer,undefined);t.mock.timers.tick(2000);assert.equal(root.querySelector('.la-work>summary')!.textContent,last);
  }finally{view.destroy();t.mock.timers.reset();dom.window.close();}
+});
+
+test('historical annotation drafts edit quotes and comments, survive updates, cancel safely and can be removed',async()=>{
+ const dom=new JSDOM('<div id="root"></div>',{url:'https://localhost/'});Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLInputElement:dom.window.HTMLInputElement});
+ const {ChatView}=await import('../src/ui');const {ChatSession,newSession}=await import('../src/session');const {defaults}=await import('../src/codex');
+ const chat=new ChatSession(newSession('/tmp'),{...defaults,cwd:'/tmp'},()=> '');
+ const selection={title:'选文',text:'old quote',annotation:'old comment',selection:{source:'AI 回复' as const,originalText:'old quote',messageId:'answer',startOffset:0,endOffset:14,contextBefore:'',contextAfter:''}};
+ chat.session.messages=[{id:'u',role:'user',text:'prompt',attachments:[{title:'note',text:'note'},selection]}];
+ const original=structuredClone(chat.session.messages);let edited:any;const root=document.getElementById('root')!;
+ const view=new ChatView(root,()=>chat,{send:async()=>false,stop:()=>{},settings:()=>{},newChat:()=>{},select:()=>{},list:()=>[],attach:()=>{},clear:()=>{},context:()=>'',editMessage:async(id,text,attachments)=>{edited=structuredClone(attachments);}});
+ const click=(text:string,scope='.la-message-edit-actions')=>[...root.querySelectorAll<HTMLButtonElement>(scope+' button')].find(b=>b.textContent===text)!.click();
+ const begin=()=>root.querySelector<HTMLButtonElement>('[aria-label="编辑"]')!.click();
+ const change=(label:string,value:string)=>{const field=root.querySelector<HTMLTextAreaElement>('[aria-label="'+label+'"]')!;field.value=value;field.dispatchEvent(new dom.window.Event('input'));};
+ try{
+  begin();change('编辑注释选文 2','new quote');change('编辑注释评论 2','new comment');view.update();assert.equal(root.querySelector<HTMLTextAreaElement>('[aria-label="编辑注释评论 2"]')!.value,'new comment');assert.deepEqual(chat.session.messages,original);
+  click('取消');assert.deepEqual(chat.session.messages,original);begin();assert.equal(root.querySelector<HTMLTextAreaElement>('[aria-label="编辑注释评论 2"]')!.value,'old comment');
+  change('编辑注释选文 2','new quote');change('编辑注释评论 2','new comment');click('发送');await new Promise(r=>setTimeout(r,0));assert.equal(edited[1].text,'new quote');assert.equal(edited[1].annotation,'new comment');assert.equal(edited[1].selection.originalText,'old quote');
+  begin();click('删除注释','.la-annotation-editor');assert.equal(root.querySelector('.la-annotation-editor'),null);click('发送');await new Promise(r=>setTimeout(r,0));assert.deepEqual(edited,[{title:'note',text:'note'}]);assert.deepEqual(chat.session.messages,original);
+ }finally{view.destroy();dom.window.close();}
 });

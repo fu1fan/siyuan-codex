@@ -72,7 +72,7 @@ try{
   await page.screenshot({path:`artifacts/highlight-${mode}-${palette}.png`});results.push({mode,palette,...state});
  }
  assert.notEqual(results[0].keywordColor,results[1].keywordColor);assert.notEqual(results[2].keywordColor,results[3].keywordColor);
- await page.locator('.b3-slider').fill('2');await page.locator('.b3-slider').dispatchEvent('change');assert.equal(await page.evaluate(()=>window.savedEffort),'high');
+ await page.locator('.la-effort-slider').fill('2');await page.locator('.la-effort-slider').dispatchEvent('change');assert.equal(await page.evaluate(()=>window.savedEffort),'high');
  // Streaming replaces the source node; the host must tokenize the new content too.
  await page.evaluate(async()=>{window.renderMarkdown(document.querySelector('.la-body'),'```py\ndef streaming(x):\n    return "partial',true);await window.enhanceMarkdown(document.querySelector('.la-body'));});
  await page.waitForFunction(()=>document.querySelector('pre code .hljs-keyword'));

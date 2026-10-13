@@ -1,4 +1,5 @@
 import {existsSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {homedir} from 'node:os';
 import {prepareStandalone} from './workspaces';
 import type {ModelSelection} from './session-model';
@@ -12,7 +13,7 @@ import {readCodexThread,mergeHistory} from './codex-history';
 export type Message={tool?:ToolRecord;promptPrefix?:string;id:string;role:'user'|'assistant'|'tool'|'error';text:string;turnId?:string;phase?:'commentary'|'final_answer';startedAt?:number;elapsedMs?:number;status?:string;displayText?:string;attachment?:Attachment;attachments?:Attachment[]};
 export type QueuedMessage={promptPrefix?:string;id:string;text:string;displayText:string;attachments?:Attachment[];error?:string};
 export type SessionOutcome='completed'|'stopped'|'error';
-export type Session={codex?:{adopted:boolean;archived?:boolean};modelProvider?:string;standalone?:{root:string;cwd:string};draft?:string;draftAttachments?:Attachment[];unread?:boolean;lastOutcome?:SessionOutcome;workspaceMode?:'auto'|'manual';workspaceLocked?:boolean;workspaceBinding?:string;queue?:QueuedMessage[];queuePaused?:boolean;id:string;title:string;threadId?:string;modelSelection?:ModelSelection;cwd:string;messages:Message[];updated:number};
+export type Session={workspaceContextSent?:{threadId:string;key:string};codex?:{adopted:boolean;archived?:boolean};modelProvider?:string;standalone?:{root:string;cwd:string};draft?:string;draftAttachments?:Attachment[];unread?:boolean;lastOutcome?:SessionOutcome;workspaceMode?:'auto'|'manual';workspaceLocked?:boolean;workspaceBinding?:string;queue?:QueuedMessage[];queuePaused?:boolean;id:string;title:string;threadId?:string;modelSelection?:ModelSelection;cwd:string;messages:Message[];updated:number};
 export class ChatSession {
   client?:CodexClient;
   busy=false;
@@ -34,7 +35,17 @@ export class ChatSession {
   currentActivity:()=>string=()=>'';
   noteAssetOptions:()=>NoteAssetOptions|undefined=()=>undefined;
   workspaceMcpState:WorkspaceMcpState={status:'configured'};
-  private workspaceContext(){return siyuanWorkspacePrompt(this.noteAssetOptions()?.workspace,this.settings.mcpUrl,this.settings.mcpEnabled?this.workspaceMcpState:{status:'disabled'});}
+  private workspaceContext(){
+    const state=this.settings.mcpEnabled?this.workspaceMcpState:{status:'disabled' as const};
+    // Observation time changes on reconnect even when the workspace does not.
+    const prompt=siyuanWorkspacePrompt(this.noteAssetOptions()?.workspace,this.settings.mcpUrl,{status:state.status,tools:state.tools?.slice().sort()});
+    const key=createHash('sha256').update(prompt).digest('hex'),threadId=this.session.threadId!;
+    const sent=this.session.workspaceContextSent;
+    return {threadId,key,prompt:sent?.threadId===threadId&&sent.key===key?'':prompt};
+  }
+  private rememberWorkspace(context:{threadId:string;key:string}){
+    if(this.session.threadId===context.threadId)this.session.workspaceContextSent={threadId:context.threadId,key:context.key};
+  }
   constructor(public session:Session,public settings:Settings,private token:()=>string,private caPath='',private factory=()=>new CodexClient()){if(session.queue?.length)session.queuePaused=true;}
   contextUsageLabel(){const usage=this.tokenUsage;if(!usage)return '尚未收到上下文用量';const current=usage.last.totalTokens;return usage.modelContextWindow?`${current.toLocaleString()} / ${usage.modelContextWindow.toLocaleString()} tokens（${Math.round(current/usage.modelContextWindow*100)}%）`:`${current.toLocaleString()} tokens`;}
   rateLimitLabel(){if(!this.rateLimits)return '尚未读取';return Object.entries(this.rateLimits).flatMap(([name,limit])=>[limit.primary,limit.secondary].filter((w):w is NonNullable<typeof w>=>!!w).map(w=>`${name} · ${w.windowDurationMins? w.windowDurationMins+' 分钟':'额度'}：剩余 ${Math.max(0,100-w.usedPercent)}%`)).join('\n')||'CLI 未提供额度信息';}
@@ -108,7 +119,9 @@ export class ChatSession {
     if(!this.busy||!this.turnId||!this.client?.alive)throw new Error('当前没有可引导的回复，请等待连接或继续排队。');
     const turnId=this.turnId;this.queuePending=id;q.error=undefined;this.onChange();
     try{
-      await this.client.request('turn/steer',{threadId:this.session.threadId,expectedTurnId:turnId,input:attachmentInput(q.text+this.workspaceContext()+this.currentActivity(),q.attachments)});
+      const workspace=this.workspaceContext();
+      await this.client.request('turn/steer',{threadId:this.session.threadId,expectedTurnId:turnId,input:attachmentInput(q.text+workspace.prompt+this.currentActivity(),q.attachments)});
+      this.rememberWorkspace(workspace);
       this.session.messages.push({...(q.promptPrefix?{promptPrefix:q.promptPrefix}:{}),id:q.id,role:'user',text:q.text,displayText:q.displayText,attachments:q.attachments,turnId,status:'steered'});
       this.session.queue=this.session.queue?.filter(x=>x.id!==id);
     }catch(e){q.error='引导失败：'+(e as Error).message;this.session.queuePaused=true;}
@@ -126,11 +139,12 @@ export class ChatSession {
     try{
       await this.connect();
       if(this.stopping)return false;
-      const inputText=text+this.workspaceContext()+this.currentActivity();
+      const workspace=this.workspaceContext(),inputText=text+workspace.prompt+this.currentActivity();
       this.session.workspaceLocked=true;
       const submitted:Message={...(promptPrefix?{promptPrefix}:{}),id:crypto.randomUUID(),role:'user',text,displayText,attachment,attachments,startedAt:this.workStartedAt};
       this.session.messages.push(submitted);this.onChange();
       const result=await this.client!.request('turn/start',{threadId:this.session.threadId,clientUserMessageId:submitted.id,...(this.settings.fastMode!==undefined?{serviceTierForTurn:this.settings.fastMode?'fast':'default'}:{}),...(this.settings.reasoningEffort?{effort:this.settings.reasoningEffort}:{}),input:attachmentInput(inputText,attachments||(attachment?[attachment]:[]))});
+      this.rememberWorkspace(workspace);
       // Notifications may arrive before the response, including turn/completed.
       if(this.busy)this.turnId=result.turn.id;const user=[...this.session.messages].reverse().find(x=>x.role==='user');if(user&&!user.turnId)user.turnId=result.turn.id;
       if(this.session.codex&&!this.session.codex.adopted){this.session.codex.adopted=true;this.onChange();}
@@ -205,17 +219,17 @@ export class ChatSession {
       return {session,draft:message.role==='user'?structuredClone(message):undefined};
     }finally{this.busy=false;this.onChange();}
   }
-  async editAndRegenerate(messageId:string,text:string){
+  async editAndRegenerate(messageId:string,text:string,editedAttachments?:Attachment[]){
     if(this.busy)throw new Error('请等待当前回复结束后再编辑。');
     if(!text.trim())throw new Error('消息不能为空。');
     const message=this.session.messages.find(m=>m.id===messageId&&m.role==='user');if(!message)throw new Error('找不到原消息。');
-    const original={threadId:this.session.threadId,messages:this.session.messages};
+    const original={threadId:this.session.threadId,messages:this.session.messages,workspaceContextSent:this.session.workspaceContextSent};
+    const attachments=await resolveReferences([],structuredClone(editedAttachments??message.attachments??(message.attachment?[message.attachment]:[])),this.noteAssetOptions());
     const fork=await this.forkAt(messageId);
-    const attachments=await resolveReferences([],structuredClone(message.attachments||(message.attachment?[message.attachment]:[])),this.noteAssetOptions());
     this.disconnect();this.session.threadId=fork.session.threadId;this.session.messages=fork.session.messages;this.session.queuePaused=true;
     const prefix=message.promptPrefix||'';
     const accepted=await this.send(prefix+text+contextPrompt(attachments),text,undefined,attachments,prefix);
-    if(!accepted){this.disconnect();this.session.threadId=original.threadId;this.session.messages=original.messages;this.onChange();throw new Error('重新发送失败，原对话已保留，请重试。');}
+    if(!accepted){this.disconnect();this.session.threadId=original.threadId;this.session.messages=original.messages;this.session.workspaceContextSent=original.workspaceContextSent;this.onChange();throw new Error('重新发送失败，原对话已保留，请重试。');}
     this.onChange();
   }
   error(text:string){this.session.messages.push({id:crypto.randomUUID(),role:'error',text});this.session.lastOutcome='error';this.status='发生错误';}

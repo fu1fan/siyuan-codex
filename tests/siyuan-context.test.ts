@@ -37,3 +37,20 @@ test('an MCP status request that closes the transport cannot report a connected 
  const chat=new ChatSession(newSession('/project'),{...defaults,cwd:'/project',mcpEnabled:true},()=>'', '',()=>client);
  await assert.rejects(chat.connect(),/连接已关闭/);assert.equal(chat.client,undefined);assert.doesNotMatch(chat.status,/已连接/);
 });
+
+test('workspace context is sent once per thread, survives reconnect and restart, changes on state updates and retries failed dispatch',async()=>{
+ const requests:any[]=[];let reject=false;const client:any={alive:true,reject(){},dispose(){this.alive=false;},async start(){this.alive=true;},async request(method:string,params:any){requests.push({method,params});if(method==='turn/start'&&reject)throw Error('failed');if(method==='thread/resume')return {thread:{id:params.threadId}};if(method==='turn/start')return {turn:{id:'turn'}};if(method==='mcpServerStatus/list')return {data:[{name:workspaceMcpServer,tools:{search:{name:'search'}}}]};return {};}};
+ const session=newSession('/project');session.threadId='thread';let workspace='/notes/one';
+ const make=()=>{const chat=new ChatSession(session,{...defaults,cwd:'/project',mcpEnabled:true,mcpUrl:'https://localhost/mcp'},()=>'', '',()=>client);chat.client=client;chat.workspaceMcpState={status:'connected',checkedAt:Math.random().toString(),tools:['search']};chat.noteAssetOptions=()=>({workspace,origin:'https://localhost'});return chat;};
+ let chat=make();const last=()=>requests.filter(r=>r.method==='turn/start'||r.method==='turn/steer').at(-1)!.params.input[0].text;
+ const send=async(text:string)=>{chat.busy=false;return chat.send(text);};
+ try{
+  await send('first');assert.match(last(),/siyuan_workspace/);await send('second');assert.doesNotMatch(last(),/siyuan_workspace/);
+  chat.busy=true;chat.turnId='turn';chat.enqueue('steer');await chat.steerQueued(session.queue![0].id);assert.doesNotMatch(last(),/siyuan_workspace/);
+  chat.busy=false;chat.disconnect();client.alive=true;chat=make();await send('restart');assert.doesNotMatch(last(),/siyuan_workspace/);
+  chat.disconnect();await send('reconnect');assert.doesNotMatch(last(),/siyuan_workspace/);
+  workspace='/notes/two';reject=true;assert.equal(await send('failed'),false);assert.match(last(),/notes\/two/);reject=false;await send('retry');assert.match(last(),/notes\/two/);await send('stable');assert.doesNotMatch(last(),/siyuan_workspace/);
+  chat.workspaceMcpState={status:'unavailable',checkedAt:'later'};await send('changed');assert.match(last(),/unavailable/);await send('stable state');assert.doesNotMatch(last(),/siyuan_workspace/);
+  session.threadId='fork';await send('fork');assert.match(last(),/siyuan_workspace/);
+ }finally{chat.disconnect();}
+});

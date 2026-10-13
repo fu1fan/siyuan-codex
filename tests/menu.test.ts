@@ -28,7 +28,7 @@ test('popover models and slider save selections; closed requests and outside cli
  `}));
  }}]});
  const file=join(dir,'fixture.cjs');writeFileSync(file,result.outputFiles[0].contents);const dom=new JSDOM('<button id=anchor></button>',{url:'https://localhost'});Object.assign(globalThis,{window:dom.window,document:dom.window.document});const {LocalAgent,CodexClient}=createRequire(import.meta.url)(file);
- const plugin=new LocalAgent();plugin.chat={busy:false,resolvedModel:'actual-model'};plugin.settings={model:''};plugin.chat.settings=plugin.settings;const changes:any[]=[];plugin.applyQuickSetting=async(p:any)=>{changes.push(p);Object.assign(plugin.settings,p);};
+ const plugin=new LocalAgent();plugin.chat={busy:false,resolvedModel:'actual-model'};plugin.settings={model:'',cwd:dir};plugin.chat.settings=plugin.settings;const changes:any[]=[];plugin.applyQuickSetting=async(p:any)=>{changes.push(p);Object.assign(plugin.settings,p);};
  const anchor=document.getElementById('anchor')!;
  let resolve!:(v:any)=>void;CodexClient.response=new Promise(r=>resolve=r);
  const pending=plugin.modelMenu(anchor);await Promise.resolve();assert.match(document.body.textContent!,/正在读取/);
