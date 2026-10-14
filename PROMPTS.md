@@ -1,6 +1,6 @@
 # 插件自动发送给 Codex 的提示词
 
-最近更新：2026-10-02。提示词构造集中在 `src/prompts.ts`；引用与附件元数据组装在 `src/context.ts`、`src/note-assets.ts`，工作区状态在 `src/siyuan-context.ts`，发送入口在 `src/codex.ts`、`src/session.ts` 和 `src/index.ts`。
+最近更新：2026-10-14。提示词构造集中在 `src/prompts.ts`；引用与附件元数据组装在 `src/context.ts`、`src/note-assets.ts`，工作区状态在 `src/siyuan-context.ts`，发送入口在 `src/codex.ts`、`src/session.ts` 和 `src/index.ts`。
 
 ## 发送内容和触发条件
 
@@ -49,10 +49,14 @@ Codex 自己的基础指令、AGENTS.md、skills、工具说明仍由 CLI 加载
 
 ## MCP 简要指引与按需阅读
 
-参考 [思源 v3.8.6 内置智能体的领域概念与工具使用流程](https://github.com/siyuan-note/siyuan/blob/v3.8.6/kernel/agent/agent.go)，插件采用简短概念说明和常用调用入口，不重复完整工具 schema，也不替换 Codex 基础提示词。操作名对应工具的 `action` 参数，例如 `export({action:"md",id:"..."})`，实际能力与参数以当前服务器暴露的声明为准。
+参考 [思源 v3.8.6 内置智能体的领域概念与工具使用流程](https://github.com/siyuan-note/siyuan/blob/v3.8.6/kernel/agent/agent.go)，插件采用简短概念说明和常用调用入口，不重复完整工具 schema，也不替换 Codex 基础提示词。操作名对应工具的 `action` 参数，例如 `block({action:"get_kramdown",id:"..."})`，实际能力与参数以当前服务器暴露的声明为准。根块全文阅读依据 [MCP block 实现](https://github.com/siyuan-note/siyuan/blob/v3.8.6/kernel/mcp/tools/block.go) 和 [GetBlockKramdownInBox 实现](https://github.com/siyuan-note/siyuan/blob/v3.8.6/kernel/model/block.go#L1464)。
 
-- 全文：`export(action="md", id)` 返回文档 Markdown；`document(action="get", id)` 用于身份／位置等元数据，不能据此认为已读全文。
-- 内容块：`block(action="get_kramdown", id)`；长文先用 `outline/get` 或 `block/get_children` 定位，再读取相关块。标题是叶块，标题下面的内容通常是后续兄弟块。
+- 全文：默认 `block(action="get_kramdown", id=文档根块ID)`，直接读取根块及其子树，得到整篇正文，无需另行导出。`document(action="get", id)` 用于身份／位置等元数据，不能据此认为已读全文。
+- 局部：选文或局部问题读取对应块及必要上下文；`block/get` 返回内容、Markdown 和块元数据，`breadcrumb` 用于追溯所在文档。
+- 长文：先用 `outline/get` 或 `block/get_children` 定位，再读取所需块；子块预览和搜索摘要不等于完整正文。标题是叶块，单独读标题不包含后续章节正文；结合大纲／子块列表定位后续内容。全文任务应覆盖所需全部章节，输出截断时继续分块读取并说明仍未读取的部分，避免重复获取全文。
+- 导出：用户需要导出格式、任务需要导出选项，或根块读取不可用时，可用 `export(action="md", id)`。它直接返回文本，不要求先保存本地文件；不再仅因目标是文档就默认导出。任一种 Markdown 阅读结果都不能证明已查看图片或附件。
+- 结构保真：MCP 的 `get_kramdown` 使用 Markdown 阅读模式，名称不保证完整保留 ID、属性和原生结构。结构性修改前查看 `block/dom` 和相应工具声明，保留现有 ID／属性，使用原生操作；不要从阅读 Markdown 重建复杂容器或数据库。
+- 引用：使用已经核实的文档／块 ID 生成 `siyuan://blocks/ID` 链接，不从全文 Markdown 猜测段落 ID。
 - 搜索：`document/search_docs` 查标题，`search/fulltext` 查匹配内容，获得 ID 后再阅读；`sql/query` 仅只读查询，并使用 `LIMIT/OFFSET`。
 - 新建／修改：`notebook/list`、`document/create`、`block/update` 与 `append/prepend/insert`；区分替换单块与增加新块，文档路径使用 hPath。
 - 工具发现：只查看所需工具的声明；不要一次输出全量工具目录。正文输出不完整时改读较小的块，并说明缺失信息。
